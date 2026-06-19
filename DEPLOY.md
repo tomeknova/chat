@@ -58,10 +58,17 @@ cd chat
 ## 3. Zależności PHP (produkcyjnie)
 
 ```bash
-composer install --no-dev --optimize-autoloader
+composer install --no-dev --optimize-autoloader --ignore-platform-req=php
 ```
 
 `--no-dev` pomija narzędzia developerskie. `vendor/` jest w `.gitignore` — to normalne, że pobierasz je tutaj.
+
+> ⚠️ **Dlaczego `--ignore-platform-req=php`:** `composer.lock` jest generowany na PHP 8.2 (local).
+> Zalockowana transitywna zależność Filamenta **`openspout/openspout` 4.28.5** deklaruje
+> `~8.2 || ~8.3 || ~8.4` i formalnie nie obejmuje **PHP 8.5** (serwer). To konserwatywny górny limit,
+> nie realna niezgodność — biblioteka działa na 8.5. Flaga pomija ten check. Żadna wersja openspout
+> nie wspiera jednocześnie 8.2 i 8.5 (8.5 dochodzi dopiero w 4.32, która porzuca 8.2), więc trzymamy
+> jeden lock dla obu środowisk i pomijamy platform-req na prod. Bez flagi `composer install` odmówi.
 
 ---
 
@@ -269,7 +276,7 @@ Sprawdź też log: `storage/logs/laravel.log` (na świeżym starcie powinien by�
 cd /var/www/chat
 git reset --hard origin/main          # nadpisz lokalny stan (deploy bez merge-konfliktów)
 git pull origin main
-composer install --no-dev --optimize-autoloader
+composer install --no-dev --optimize-autoloader --ignore-platform-req=php
 npm ci && npm run build
 php artisan migrate --force
 php artisan chat:build-corpus          # [v1] jeśli istnieje
@@ -291,6 +298,7 @@ sudo systemctl reload php8.3-fpm nginx
 | **Zmiana `.env` nie działa** | config zcache'owany | `php artisan config:cache` |
 | **Polskie znaki krzaczą się** | złe kodowanie pliku | weryfikuj UTF-8: `grep -cP '[ÃÄÅ]' <plik>` → 0 |
 | **AI nie odpowiada / 401** | brak/zły `ANTHROPIC_API_KEY` | sprawdź `.env` (klucz, bez spacji) + `config:cache` |
+| **`composer install` odmawia (php constraint)** | `openspout` w lock nie deklaruje PHP 8.5 | dodaj `--ignore-platform-req=php` (patrz krok 3) |
 
 ---
 
