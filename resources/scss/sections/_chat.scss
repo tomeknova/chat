@@ -1,0 +1,226 @@
+// main: ../main.scss
+/*--------------------------------------------------------------
+# Chat — bubbles + input
+# Extracted from EliteAdmin (assets/scss/pages/_apps-chat.scss).
+# Uses the BootstrapMade color variables, which resolve to Landia's
+# palette (--accent-color = navy) — NOT EliteAdmin's own _variables.
+# Contact list / info panel / chat header are intentionally dropped.
+--------------------------------------------------------------*/
+
+// Standalone container (replaces EliteAdmin's full .chat-container layout)
+.chat-window {
+  display: flex;
+  flex-direction: column;
+  height: clamp(420px, 60vh, 640px);
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--bs-border-radius-lg);
+  overflow: hidden;
+}
+
+// -----------------------------------------------------------------------------
+// Messages area
+// -----------------------------------------------------------------------------
+
+.chat-messages {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Message group
+// -----------------------------------------------------------------------------
+
+.message-group {
+  display: flex;
+  gap: 0.75rem;
+
+  &.sent {
+    flex-direction: row-reverse;
+
+    .message-content {
+      align-items: flex-end;
+    }
+
+    .message-bubble {
+      background: var(--accent-color);
+      color: var(--contrast-color);
+      border-bottom-right-radius: 0.25rem;
+    }
+  }
+
+  &.received .message-bubble {
+    border-bottom-left-radius: 0.25rem;
+  }
+}
+
+.message-avatar img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.message-content {
+  max-width: 70%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.message-bubble {
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  background: var(--background-color);
+  color: var(--default-color);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.message-time {
+  font-size: 0.6875rem;
+  color: var(--muted-color);
+  padding: 0 0.5rem;
+}
+
+.message-status {
+  font-size: 0.75rem;
+  color: var(--muted-color);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &.seen {
+    color: var(--accent-color);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Date divider
+// -----------------------------------------------------------------------------
+
+.message-date-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 0;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+  }
+
+  span {
+    font-size: 0.75rem;
+    color: var(--muted-color);
+    white-space: nowrap;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Input bar
+// -----------------------------------------------------------------------------
+
+.chat-input {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--surface-color);
+}
+
+.chat-input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  background: var(--background-color);
+  border-radius: var(--bs-border-radius-lg);
+  padding: 0.5rem;
+}
+
+.chat-input-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.chat-input-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--muted-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--border-color);
+    color: var(--default-color);
+  }
+}
+
+.chat-input-field {
+  flex: 1;
+
+  textarea {
+    width: 100%;
+    border: none;
+    background: none;
+    resize: none;
+    padding: 0.5rem;
+    font-size: 0.9375rem;
+    color: var(--default-color);
+    max-height: 120px;
+    line-height: 1.5;
+
+    &:focus {
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--muted-color);
+    }
+  }
+}
+
+.chat-send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-color);
+  color: var(--contrast-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-color), black 15%);
+  }
+
+  &:disabled {
+    background: var(--border-color);
+    color: var(--muted-color);
+    cursor: not-allowed;
+  }
+}

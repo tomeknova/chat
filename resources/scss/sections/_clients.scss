@@ -1,0 +1,33 @@
+// main: ../main.scss
+/*--------------------------------------------------------------
+# Clients Section
+--------------------------------------------------------------*/
+.clients {
+  .logo-card {
+    padding: 24px 16px;
+    border-radius: 8px;
+    background: var(--surface-color);
+    border: 1px solid color-mix(in srgb, var(--default-color), transparent 88%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    min-height: 88px;
+
+    img {
+      max-height: 40px;
+      width: auto;
+      opacity: 0.55;
+      filter: grayscale(100%);
+      transition: all 0.2s ease;
+    }
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--default-color), transparent 80%);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+      img {
+        opacity: 1;
+        filter: grayscale(0%);
+      }
+    }
+  }
+}

@@ -1,4 +1,6 @@
-// Bootstrap 5 + icons (same setup as KINGS5). Vite compiles via `sass`.
+// Vite entry — Bootstrap (vendor) + Landia template styles. Same wiring as KINGS5:
+// Bootstrap is NOT imported by Landia's main.scss, so we pull it from node_modules first,
+// then layer the template (variables + layouts + sections) on top.
 @import "bootstrap/scss/bootstrap";
 @import "bootstrap-icons/font/bootstrap-icons.css";
 @import 'main.scss';

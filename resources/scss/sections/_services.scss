@@ -1,0 +1,203 @@
+// main: ../main.scss
+/*--------------------------------------------------------------
+# Services Section
+--------------------------------------------------------------*/
+.services {
+  padding: 80px 0;
+
+  .intro-block {
+    margin-bottom: 16px;
+
+    .tag-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--accent-color), transparent 90%);
+      color: var(--accent-color);
+      border: 1px solid color-mix(in srgb, var(--accent-color), transparent 70%);
+      margin-bottom: 16px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .block-heading {
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      color: var(--heading-color);
+      margin-bottom: 16px;
+
+      @media (max-width: 768px) {
+        font-size: 28px;
+      }
+    }
+
+    .block-text {
+      font-size: 16px;
+      line-height: 1.7;
+      color: color-mix(in srgb, var(--default-color), transparent 30%);
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+
+    .action-group {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 40px;
+      padding: 0 24px;
+      background: var(--heading-color);
+      color: var(--contrast-color);
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 14px;
+      text-decoration: none;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: color-mix(in srgb, var(--heading-color), transparent 10%);
+        color: var(--contrast-color);
+      }
+
+      &:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--heading-color), transparent 80%);
+      }
+    }
+
+    .btn-ghost-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 40px;
+      padding: 0 16px;
+      background: transparent;
+      color: var(--default-color);
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 14px;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      gap: 6px;
+
+      &:hover {
+        background: var(--surface-color);
+        color: var(--accent-color);
+      }
+    }
+  }
+
+  .capability-card {
+    background: var(--surface-color);
+    padding: 24px;
+    border-radius: 8px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid color-mix(in srgb, var(--default-color), transparent 88%);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--default-color), transparent 92%);
+    transition: all 0.2s ease;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--default-color), transparent 80%);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--default-color), transparent 90%);
+    }
+
+    .card-icon {
+      margin-bottom: 16px;
+
+      i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+        color: color-mix(in srgb, var(--default-color), transparent 30%);
+        background: color-mix(in srgb, var(--default-color), transparent 94%);
+        border-radius: 8px;
+        transition: all 0.2s ease;
+      }
+    }
+
+    &:hover .card-icon i {
+      color: var(--accent-color);
+      background: color-mix(in srgb, var(--accent-color), transparent 90%);
+    }
+
+    .card-body-content {
+      flex: 1;
+
+      .card-heading {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        line-height: 1.4;
+        letter-spacing: -0.01em;
+
+        a {
+          color: var(--heading-color);
+          text-decoration: none;
+          transition: color 0.2s ease;
+
+          &:hover {
+            color: var(--accent-color);
+          }
+        }
+      }
+
+      .card-text {
+        font-size: 14px;
+        line-height: 1.6;
+        color: color-mix(in srgb, var(--default-color), transparent 30%);
+        margin-bottom: 0;
+      }
+    }
+
+    .card-foot {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid color-mix(in srgb, var(--default-color), transparent 90%);
+
+      .card-link {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--default-color);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: color 0.2s ease;
+
+        i {
+          font-size: 12px;
+          transition: transform 0.2s ease;
+        }
+
+        &:hover {
+          color: var(--accent-color);
+
+          i {
+            transform: translateX(3px);
+          }
+        }
+      }
+    }
+  }
+
+  @media (max-width: 768px) {
+    padding: 60px 0;
+  }
+}

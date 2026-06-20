@@ -1,4 +1,76 @@
-// Project variables / Bootstrap overrides.
-// Set Bootstrap vars BEFORE the bootstrap import if overriding the theme.
-// KINGS accent color placeholder — adjust when Landia palette lands.
-$primary: #0d6efd;
+// main: main.scss
+/*--------------------------------------------------------------
+# Font & Color Variables
+# Help: https://bootstrapmade.com/color-system/
+--------------------------------------------------------------*/
+
+/* Fonts */
+:root {
+  --default-font: "Roboto",  system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --heading-font: "Montserrat",  sans-serif;
+  --nav-font: "Rubik",  sans-serif;
+}
+
+/* Global Colors - The following color variables are used throughout the website. Updating them here will change the color scheme of the entire website */
+:root { 
+  --background-color: #f4f4f4; /* Background color for the entire website, including individual sections */
+  --default-color: #505050; /* Default color used for the majority of the text content across the entire website */
+  --heading-color: #383838; /* Color for headings, subheadings and title throughout the website */
+  --accent-color: #011627; /* Accent color that represents your brand on the website. It's used for buttons, links, and other elements that need to stand out */
+  --surface-color: #ffffff; /* The surface color is used as a background of boxed elements within sections, such as cards, icon boxes, or other elements that require a visual separation from the global background. */
+  --contrast-color: #ffffff; /* Contrast color for text, ensuring readability against backgrounds of accent, heading, or default colors. */
+}
+
+/* Helper Colors - adapted from EliteAdmin (chat component). The CORE palette above stays Landia;
+   these only add the extra tokens the chat SCSS references (muted/border/status). */
+:root {
+  /* Extended text */
+  --muted-color: #78716c;
+  --light-color: #a8a29e;
+
+  /* Borders */
+  --border-color: #e7e5e4;
+  --border-color-light: #f5f5f4;
+  --border-color-dark: #d6d3d1;
+
+  /* Status */
+  --success-color: #10b981;
+  --success-color-light: #d1fae5;
+  --warning-color: #f59e0b;
+  --warning-color-light: #fef3c7;
+  --danger-color: #ef4444;
+  --danger-color-light: #fee2e2;
+  --info-color: #8b5cf6;
+  --info-color-light: #ede9fe;
+}
+
+/* Nav Menu Colors - The following color variables are used specifically for the navigation menu. They are separate from the global colors to allow for more customization options */
+:root {
+  --nav-color: #505050;  /* The default color of the main navmenu links */
+  --nav-hover-color: #011627; /* Applied to main navmenu links when they are hovered over or active */
+  --nav-mobile-background-color: #ffffff; /* Used as the background color for mobile navigation menu */
+  --nav-dropdown-background-color: #ffffff; /* Used as the background color for dropdown items that appear when hovering over primary navigation items */
+  --nav-dropdown-color: #505050; /* Used for navigation links of the dropdown items in the navigation menu. */
+  --nav-dropdown-hover-color: #011627; /* Similar to --nav-hover-color, this color is applied to dropdown navigation links when they are hovered over. */
+}
+
+/* Color Presets - These classes override global colors when applied to any section or element, providing reuse of the sam color scheme. */
+
+.light-background {
+  --background-color: #fcfcfc;
+  --surface-color: #ffffff;
+}
+
+.dark-background {
+  --background-color: #262626;
+  --default-color: #ffffff;
+  --heading-color: #ffffff;
+  --accent-color: #ffffff;
+  --surface-color: #353535;
+  --contrast-color: #ffffff;
+}
+
+/* Smooth scroll */
+:root {
+  scroll-behavior: smooth;
+}

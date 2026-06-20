@@ -1,0 +1,112 @@
+// main: ../main.scss
+/*--------------------------------------------------------------
+# Testimonials Section
+--------------------------------------------------------------*/
+.testimonials {
+  .review-card {
+    background: var(--surface-color);
+    border: 1px solid color-mix(in srgb, var(--default-color), transparent 88%);
+    border-radius: 8px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--default-color), transparent 92%);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--default-color), transparent 80%);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--default-color), transparent 90%);
+    }
+
+    &.featured {
+      border-color: color-mix(in srgb, var(--accent-color), transparent 70%);
+      background: color-mix(in srgb, var(--accent-color), transparent 96%);
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-color), transparent 50%);
+      }
+    }
+  }
+
+  .review-body {
+    .star-group {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 16px;
+
+      i {
+        font-size: 14px;
+        color: #f59e0b;
+      }
+    }
+
+    p {
+      font-size: 15px;
+      line-height: 1.65;
+      margin: 0;
+    }
+  }
+
+  .review-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid color-mix(in srgb, var(--default-color), transparent 90%);
+
+    img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+  }
+
+  .reviewer-info {
+    h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 2px;
+      letter-spacing: -0.01em;
+    }
+
+    span {
+      font-size: 12px;
+      color: color-mix(in srgb, var(--default-color), transparent 40%);
+      font-weight: 500;
+    }
+  }
+
+  @media (max-width: 992px) {
+    .review-card {
+      padding: 20px;
+    }
+
+    .review-body {
+      p {
+        font-size: 14px;
+      }
+    }
+  }
+
+  @media (max-width: 576px) {
+    .review-card {
+      padding: 16px;
+    }
+
+    .review-footer {
+      margin-top: 16px;
+      padding-top: 12px;
+    }
+
+    .reviewer-info {
+      h4 {
+        font-size: 13px;
+      }
+    }
+  }
+}
