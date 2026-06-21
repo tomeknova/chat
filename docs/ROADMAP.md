@@ -1,5 +1,10 @@
 # ROADMAP — AskDocs (asystent AI nad dokumentacja KINGS)
 
+> ⚠️ **SUPERSEDED dla v1.** Wiążące dla v1 = `docs/SCOPE_V1.md` + `docs/BIELIK_INTEGRATION.md`.
+> Ten dokument (11 tabel / 14 etapów) = **backlog hardeningu** (gdy ruch urośnie), NIE plan v1.
+> Rozbieżności (wiele wierszy `generations`, `config/ai.php`, model `claude-haiku-4.5`) → obowiązuje SCOPE_V1/BIELIK
+> (zbudowane: 5 tabel, 1 wiersz generacji + `metadata.attempts[]`, model `openai/gpt-5.4-nano`).
+>
 > Mapa drogowa wdrozen dla projektu AskDocs. Os glowna = SEKWENCJA ETAPOW
 > (bramki weryfikowalne, NIE daty). Szczegoly w sekcji FILARY.
 > Wiazacy spec: **docs/AI_ASSISTANT_DESIGN.md v0.5**, kontrakt kanoniczny A-I (sek. 2a).

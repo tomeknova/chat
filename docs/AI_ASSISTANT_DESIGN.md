@@ -1,5 +1,10 @@
 # Asystent AI (AskDocs) — propozycja projektowa
 
+> ⚠️ **SUPERSEDED dla v1.** Wiążące dla v1 = `docs/SCOPE_V1.md` + `docs/BIELIK_INTEGRATION.md`.
+> Ten dokument v0.5 = **backlog hardeningu** (pełny projekt po audytach), NIE kontrakt v1. Rozbieżności
+> (11-tabelowy model, `operation_id` na `messages`, `security_verdict`/ML-gate, model `claude-haiku-4.5`)
+> → obowiązuje SCOPE_V1/BIELIK (anty-injection = gate frontmatter `assistant:true`; model `openai/gpt-5.4-nano`).
+>
 > **Status:** v0.5 — DRAFT do audytu generalnego.
 > **Prowenancja:** zrewidowano po DWoch audytach generalnych v0.4 (narracyjny + strukturalny F-01..F-16) — na bazie v0.4 (po TRZECH audytach generalnych: GPT-5.5 / DeepSeek-2 adwersaryjny / GLM 5.2). v0.5 NIE zmienia rdzenia v0.4 (grounding = WYBOR ANSWER-UNIT), lecz USZCZELNIA kontrakt: (1) walidacja `answer_unit_id` przeciw `generation_context` (immutable snapshot jednostek FAKTYCZNIE w prompcie), NIE przeciw kandydatom retrievalu; (2) `content_hash` czytany wylacznie z immutable snapshotu generacji, nigdy z live registry; (3) PELNA macierz warunkowosci w walidatorze (STEP 1); (4) multi-unit ATOMOWY (czesciowa akceptacja = `failed`, brak ukrytej czesciowosci); (5) BUILD-TIME SECURITY GATE klasyfikujacy kazda jednostke PRZED publikacja (verdict zwiazany z `content_hash`), runtime output filter = warstwa defense-in-depth, maly model POZA deterministycznym rdzeniem walidatora; (6) rozdzielenie `model_response_type` (przed walidacja) od `answerability_status` (po walidacji, wyprowadzany); (7) PROVENANCE + integralnosc renderowanej tresci „by construction", TRAFNOSC i KOMPLETNOSC = wlasciwosci EMPIRYCZNE mierzone w eval; (8) korekta faktow Structured Outputs (anyOf + union types WSPIERANE z limitami; oneOf/if-then-else NIE) i prompt cachingu (profil zalezny od TTL); (9) trzy poziomy idempotencji; (10) jawna decyzja PII (raw_question_encrypted) i wersjonowany owner_token; (11) eval ROZSZERZONY o zbiory ludzkie/adwersaryjne + liczbowe progi wejscia per-klasa. Tresc po polsku; identyfikatory i kod po angielsku; kodowanie UTF-8.
 >
