@@ -114,8 +114,17 @@ SESSION_DRIVER=database
 CACHE_STORE=database
 QUEUE_CONNECTION=database
 
-# Klucz Anthropic — DODAJ ten wpis (nie ma go w .env.example):
-ANTHROPIC_API_KEY=<KLUCZ_API>   # tylko tutaj, NIGDY w kodzie/gicie
+# AI — OpenRouter (OpenAI-compatible). Klucz tylko tutaj, NIGDY w kodzie/gicie.
+OPENROUTER_API_KEY=<KLUCZ_API>
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+AI_MODEL=openai/gpt-5.4-nano
+AI_FALLBACK_MODEL=mistralai/ministral-14b-2512
+
+# Bezpieczniki kosztu + linki źródeł + korpus:
+AI_DAILY_BUDGET_USD=1.0                       # dzienny limit (denial-of-wallet); AI_ENABLED=false = kill-switch
+DOCS_BASE_URL=https://kings5-docs.mixpost.pl  # domena docs (linki źródeł)
+CORPUS_SOURCE_PATH=/var/www/kings5-docs       # źródło markdownów do korpusu
+# OWNER_TOKEN_PEPPER=<losowy_sekret>          # hash owner_token (RODO); domyślnie APP_KEY
 ```
 
 > ⚠️ Jeśli zostawisz `SESSION/CACHE/QUEUE=database`, a NIE odpalisz migracji (krok 6),
@@ -140,8 +149,9 @@ Migracje:
 php artisan migrate --force     # --force = bez pytania na produkcji
 ```
 
-> Obecnie migruje tabele bazowe (users, cache, jobs). Po **[v1]** dojdą
-> `conversations`, `messages`, `approved_answers` — ta sama komenda je obejmie.
+> Migruje tabele Laravela (users, cache, jobs, sessions) + aplikacyjne v1:
+> `conversations`, `messages`, `generations`, `generation_context`, `message_units`.
+> Pełny provisioning bazy (user, prawa, weryfikacja, parytet MySQL 8.4): `docs/DB_SETUP.md`.
 
 ---
 
@@ -153,15 +163,17 @@ Asystent odpowiada z korpusu zbudowanego z markdownów repo **kings5-docs**.
 # 1) udostępnij źródło docs na serwerze (clone obok projektu lub w ustalonej ścieżce):
 git clone git@github.com:<ORG>/kings5-docs.git /var/www/kings5-docs
 
-# 2) wskaż ścieżkę źródła docs w .env / config/docs.php (zależnie od implementacji v1),
-#    np. DOCS_SOURCE_PATH=/var/www/kings5-docs
+# 2) wskaż ścieżkę źródła docs w .env (czyta config/corpus.php):
+#    CORPUS_SOURCE_PATH=/var/www/kings5-docs
 
 # 3) zbuduj korpus:
 php artisan chat:build-corpus
 ```
 
-> Pomiń ten krok, jeśli komenda jeszcze nie istnieje (`php artisan list | grep chat:`).
-> Bez korpusu asystent zwróci „brak w docs" — to nie błąd, to fallback.
+> Do korpusu wchodzą **tylko** strony z frontmatter `assistant: true` (gate kuracji —
+> patrz `kings5-docs/docs/AUTHORING_FOR_ASSISTANT.md`). Bez zatwierdzonych stron korpus
+> jest pusty, a asystent grzecznie abstynuje — to nie błąd, to bezpieczny default.
+> Korpus przebudowuj po każdej zmianie docs (deploy i/lub cron).
 
 ---
 
