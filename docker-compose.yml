@@ -1,0 +1,48 @@
+# Local test environment mirroring production: PHP 8.5 + MySQL 8.4.
+# Purpose: run `php artisan test` / migrations on the SAME engine as prod
+# (MySQL 8.4 behaves differently from LAMPP's MariaDB for CHECK/cascade/JSON/ULID).
+#
+# Usage (see chat for details):
+#   docker compose up -d --build
+#   docker compose exec app composer install --ignore-platform-req=php
+#   docker compose exec app php artisan migrate
+#   docker compose exec app php artisan test
+services:
+  app:
+    build: ./docker/php
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    environment:
+      # Override .env so the app talks to the `db` service (not 127.0.0.1/LAMPP).
+      # Laravel keeps existing env vars over .env, so these win.
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: chat
+      DB_USERNAME: root
+      DB_PASSWORD: ""
+    ports:
+      - "8000:8000"   # `php artisan serve --host=0.0.0.0` -> http://localhost:8000
+    command: ["tail", "-f", "/dev/null"]   # keep alive; run commands via `docker compose exec`
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: chat
+    ports:
+      - "3307:3306"   # host 3307 -> avoids clashing with LAMPP MariaDB on 3306
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  dbdata:

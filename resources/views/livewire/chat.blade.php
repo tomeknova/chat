@@ -17,7 +17,10 @@
         <div class="message-date-divider"><span>Dzisiaj</span></div>
 
         @foreach ($messages as $message)
-            @include('livewire.partials._message', ['message' => $message])
+            @include('livewire.partials._message', [
+                'message' => $message,
+                'bubbleKey' => $message['id'] ?? 'seed-'.$loop->index,
+            ])
         @endforeach
     </div>
 
