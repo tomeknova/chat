@@ -88,9 +88,10 @@ class BuildCorpusTest extends TestCase
         $ids = array_column($units, 'answer_unit_id');
         $this->assertSame(['wydarzenia.tworzenie', 'wydarzenia.tworzenie.krok-1', 'wydarzenia.tworzenie.szczegol'], $ids);
 
-        // canonical_url is page-level for every unit of the page (SCOPE_V1 file→URL).
+        // Intro unit = page-level; section units get the H2/H3 anchor (#slug).
         $this->assertSame('/wydarzenia/tworzenie', $units[0]['canonical_url']);
-        $this->assertSame('/wydarzenia/tworzenie', $units[1]['canonical_url']);
+        $this->assertSame('/wydarzenia/tworzenie#krok-1', $units[1]['canonical_url']);
+        $this->assertSame('/wydarzenia/tworzenie#szczegol', $units[2]['canonical_url']);
         $this->assertSame(['tworzenie'], $units[1]['intents']);
     }
 

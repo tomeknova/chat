@@ -140,8 +140,8 @@ class BuildCorpus
             $slug = Str::slug($section['heading']) ?: 'sekcja';
             $id = $this->uniqueId($pageId.'.'.$slug, $seenIds);
 
-            // canonical_url is page-level (SCOPE_V1 file→URL map) — robust links.
-            $units[] = $this->makeUnit($id, $content, $intents, $pageUrl);
+            // canonical_url includes the section hash — VitePress slugify matches Str::slug() (ASCII).
+            $units[] = $this->makeUnit($id, $content, $intents, $pageUrl.'#'.$slug);
         }
 
         return $units;
