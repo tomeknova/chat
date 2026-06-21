@@ -224,3 +224,32 @@
     cursor: not-allowed;
   }
 }
+
+// Rating thumbs (👍/👎): yellow when active/hovered, "pop" on click.
+.rating-btn {
+  color: var(--muted-color);
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: #f0b400;
+  }
+
+  &.is-active {
+    color: #f0b400;
+  }
+
+  // Re-triggered on each click via Alpine (remove → reflow → add) so it replays.
+  &.pop {
+    animation: rating-pop 0.3s ease;
+  }
+}
+
+@keyframes rating-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.45);
+  }
+}

@@ -39,14 +39,16 @@
 
                 @if ($id)
                     <button type="button"
-                        class="btn btn-sm btn-link p-0 {{ $rating === 'up' ? 'text-primary' : 'text-secondary' }}"
+                        x-on:click="$el.classList.remove('pop'); void $el.offsetWidth; $el.classList.add('pop')"
+                        class="rating-btn btn btn-sm btn-link p-0 {{ $rating === 'up' ? 'is-active' : '' }}"
                         title="Pomocne"
                         wire:click="rate({{ $id }}, 'up')"
                         wire:loading.attr="disabled">
                         <i class="bi {{ $rating === 'up' ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up' }}"></i>
                     </button>
                     <button type="button"
-                        class="btn btn-sm btn-link p-0 {{ $rating === 'down' ? 'text-danger' : 'text-secondary' }}"
+                        x-on:click="$el.classList.remove('pop'); void $el.offsetWidth; $el.classList.add('pop')"
+                        class="rating-btn btn btn-sm btn-link p-0 {{ $rating === 'down' ? 'is-active' : '' }}"
                         title="Niepomocne"
                         wire:click="rate({{ $id }}, 'down')"
                         wire:loading.attr="disabled">
