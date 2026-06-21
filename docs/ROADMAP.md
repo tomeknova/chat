@@ -48,8 +48,8 @@ bez logowania). Retrieval = etap 0 (caly korpus jako kandydaci). Co NIE jest w v
 - Livewire **4** — publiczny czat (single-page)
 - Filament **5** — panel review (curation + telemetria)
 - **MySQL 8.4 LTS** (prod) / MariaDB (local) — polaczenie Laravel **`mysql`**, baza `chat`
-- AI: **OpenRouter** (OpenAI-compatible), model **`anthropic/claude-haiku-4.5`**,
-  klucz `OPENROUTER_API_KEY` (tylko `.env`)
+- AI: **OpenRouter** (OpenAI-compatible), model **`openai/gpt-5.4-nano`**
+  (fallback `mistralai/ministral-14b-2512`), klucz `OPENROUTER_API_KEY` (tylko `.env`)
 - Tailwind v4; rama Landia + dymki czatu EliteAdmin
 
 ### ZASADA SEKWENCJI (nadrzedna)
@@ -104,8 +104,9 @@ ADDYTYWNE**. Bramki = komenda/test/metryka, NIE daty.
   Filary retention i deploy wskazuja TE SAMA opcje (rekomendacja: opcja A).
 - **(c) Telemetria kosztow vs RODO-delete** — rollup do nie-PII / anonimizacja / CASCADE,
   z uzasadnieniem (rekomendacja: **rollup**).
-- **(d) ProviderRefusal przez OpenRouter** — Claude (Haiku 4.5) ma natywny `stop_reason: refusal`
-  (HTTP200), ale OpenRouter normalizuje `finish_reason`; **mapowanie nativne->InfraStatus w adapterze**.
+- **(d) ProviderRefusal przez OpenRouter** — dostawca (OpenAI/GPT-5.4-nano) moze zwracac natywny
+  `finish_reason: refusal` lub `content_filter` (HTTP200); OpenRouter normalizuje `finish_reason`;
+  **mapowanie nativne->InfraStatus w adapterze**.
 - **(e) DECYZJA #1 = PUBLICZNY** — `tenant_id`/`user_id` NULLABLE tylko na conversations,
   dodawane addytywnie przy ewentualnym wariancie in-panel.
 - **(f) Wlasciciel enumow kolizyjnych** — JEDEN wlasciciel pliku na enum: `CorpusStatus` -> filar
@@ -154,7 +155,7 @@ na bazie TYMCZASOWEJ (migracje WCIAZ edytowalne). Klient i walidator koduja prze
 
 **BRAMKA:**
 - **TWARDA:** `php artisan chat:assistant-smoke` exit 0 — realne wywolanie
-  `anthropic/claude-haiku-4.5`: HTTP 200 + cialo parsowalne zgodne z PLASKA strict json_schema
+  `openai/gpt-5.4-nano`: HTTP 200 + cialo parsowalne zgodne z PLASKA strict json_schema
   (`response_type` obecny, `additionalProperties:false`, BEZ `if/then/oneOf`).
 - **`[FIX missing-gate]` Cache:** weryfikacja `cache_read_input_tokens>0` przeniesiona do
   **osobnej bramki z fixturem prefiksu >=4096 tok** (syntetyczny korpus paddingowy) — TWARDO
@@ -483,8 +484,8 @@ rekomendacja opcja A: guard `NOT EXISTS`, brak snapshotu body).
 migrate --force -> chat:build-corpus --publish [immutable, bez swap] -> chat:eval --gate [regresja
 kluczowych klas BLOKUJE swap] -> swap current_corpus_version -> config:cache -> reload), cron
 chat:purge-expired (retencja korpus>=logi, 3 strefy cascade), vhost nginx+PHP-FPM za Cloudflare,
-`.env` raz na serwerze (OPENROUTER_API_KEY NIE w gicie), DEPLOY.md (zamiana ANTHROPIC->OPENROUTER,
-model anthropic/claude-haiku-4.5). Zwolnienie do prod zaleznie od warunkow wejscia (sek. 13 v0.5).
+`.env` raz na serwerze (OPENROUTER_API_KEY NIE w gicie), DEPLOY.md (model `openai/gpt-5.4-nano`,
+fallback `mistralai/ministral-14b-2512`). Zwolnienie do prod zaleznie od warunkow wejscia (sek. 13 v0.5).
 **Filary:** deploy, eval, corpus, retention, sec-injection, sec-cost.
 **`[FIX multi-instancja]`** warunek wejscia do prod: „tryb instancji potwierdzony" (single-instance
 udokumentowany LUB wspolny store breakera/budzetu + wspolny magazyn korpusu).

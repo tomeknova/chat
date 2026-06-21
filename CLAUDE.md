@@ -23,7 +23,7 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
 - Laravel 12 / PHP 8.2+ (local LAMPP: **8.2** · serwer prod: **8.5**)
 - Livewire (preferencja: 4, jak w KINGS5) — publiczny, jednostronicowy czat
 - Filament 5 — panel review (pytania + zatwierdzone odpowiedzi)
-- **MySQL/MariaDB** — połączenie Laravel **`mysql`** (przenośne: local=MariaDB, prod=**MySQL 8.4 LTS**); baza `chat`. Tabele: pytania / feedback / rozmowy / approved_answers
+- **MySQL/MariaDB** — połączenie Laravel **`mysql`** (przenośne: local=MariaDB, prod=**MySQL 8.4 LTS**); baza `chat`. ~11 tabel aplikacyjnych (schemat w `docs/DATABASE_SCHEMA.md`)
 - Tailwind; layout z BootstrapMade „Landia" (rama) + dymki czatu z szablonu admina
 - AI: **OpenRouter** (OpenAI-compatible, `config/ai.php`), model **`openai/gpt-5.4-nano`**
   (fallback `mistralai/ministral-14b-2512`), strict JSON structured output + `provider.only`
@@ -53,20 +53,22 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
 2. Sekrety tylko w `.env`, nigdy w kodzie.
 3. Publiczny endpoint czatu → **throttle** (RateLimiter) — chroni przed kosztami/abuse.
 4. Nowe pliki PL → czysty UTF-8.
-5. Bez fine-tuningu — jakość przez `approved_answers` (curation w kontekście).
+5. Bez fine-tuningu — jakość przez edycję docs VitePress + `chat:build-corpus` (curation przez reindeks).
 6. Bez nowych katalogów top-level w `app/`; bez zbędnych abstrakcji (YAGNI).
 
 ## ROZMIESZCZENIE PLIKÓW
 - `app/Livewire/` — komponent czatu (single-page) + ewentualnie historia.
 - `app/Actions/` — `AskDocs` (woła Claude), itp.
 - `app/Console/Commands/` — `chat:build-corpus` (buduje korpus z markdownów kings5-docs).
-- `app/Filament/Resources/` — `Questions`, `ApprovedAnswers` (review/curation).
+- `app/Filament/Resources/` — `Questions`, `AnswerDrafts`, `Generations` (review/curation/telemetria).
 - `config/docs.php` — bazowy URL docs, ścieżka źródła docs, model.
 
-## MODEL DANYCH (szkic)
-- `conversations` — `owner_token` (anon cookie), `title`, `created_at`
-- `messages` — `conversation_id`, `role` (user/assistant), `content`, `ai_link`, `ai_covered`, `rating` (up/down/null), `created_at`
-- `approved_answers` — `question`, `answer`, `link`, `is_active`
+## MODEL DANYCH (szkic — pełny schemat w `docs/DATABASE_SCHEMA.md`)
+- `conversations` — `public_id` (ULID), `owner_token_hash`, `title`, `created_at`
+- `messages` — `conversation_id`, `role` (user/assistant), `content`, `rating` (up/down/null), `selected_generation_id` FK, `created_at`
+- `generations` / `generation_context` / `generation_retrieval_candidates` / `message_units` / `message_sources` — ślad generacji i telemetria
+- `answer_drafts` — brudnopis kuracji (`corpus_version_seen`, `draft_status`, `expired`); runtime nigdy nie czyta
+- `corpus_versions` / `answer_unit_versions` — immutable rejestr korpusu (append-only)
 
 ## ARCHITEKTURA ASYSTENTA
 - **AskDocs (Action):** `system` = instrukcja + jednostki korpusu (UNTRUSTED); model **wybiera**
@@ -74,8 +76,9 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
   z `generation_context` (walidacja `∈ context` + `content_hash`), link z manifestu — nie od modelu.
 - **Korpus:** `chat:build-corpus` czyta markdowny z repo **kings5-docs** → plik w `storage`;
   odpalany przy deployu (i/lub cron) → asystent zawsze zna aktualne docs.
-- **Pętla feedbacku:** 👎 → review w Filament → `approved_answer` → serwowane przy
-  trafieniu / wstrzykiwane jako wzorce do kontekstu modelu.
+- **Pętla feedbacku:** 👎 → review w Filament → admin edytuje docs VitePress →
+  `chat:build-corpus` → asystent zna poprawną treść. `answer_drafts` = wyłącznie
+  brudnopis (runtime nigdy nie czyta; auto-wygasa po reindeksie).
 
 ## DEPLOY (git → GitHub prywatne → serwer pull)
 - Repo: **`kings5-docs-chat`** (prywatne). Serwer pobiera przez **deploy key** (read-only).
@@ -97,7 +100,7 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
 - [ ] Logika w Action (nie w kontrolerze/Livewire)?
 - [ ] Klucz/sekrety tylko w `.env`?
 - [ ] Endpoint czatu z throttle?
-- [ ] Structured output `{answer, link, covered}` + zakaz zmyślania?
+- [ ] Structured output `{response_type, answer_unit_ids[]}` + walidacja `∈ generation_context` + `content_hash`?
 - [ ] Prompt caching na korpusie (cache_read > 0)?
 - [ ] UTF-8 czysty w nowych plikach PL?
 - [ ] Filament resource dla nowych danych?

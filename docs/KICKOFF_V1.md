@@ -86,9 +86,15 @@ php artisan chat:assistant-smoke --question="jak się zalogować do panelu?"
 **Pre-launch:** ręczny check injection/abstynencja, nota prywatności + delete po owner_token, smoke strict JSON. → publicznie.
 
 ## Drobiazgi do zrobienia przy GO
-- Zaktualizować sekcję „AI" w **CLAUDE.md**: Anthropic SDK → OpenRouter (OpenAI-compatible), model `openai/gpt-5.4-nano` (`memory/project_ai_provider`).
-- `.env`: `AI_MODEL` z `anthropic/claude-haiku-4.5` na `openai/gpt-5.4-nano`.
+- ✅ Zaktualizować sekcję „AI" w **CLAUDE.md**: Anthropic SDK → OpenRouter (OpenAI-compatible), model `openai/gpt-5.4-nano`.
+- ✅ `.env`: `AI_MODEL` z `anthropic/claude-haiku-4.5` na `openai/gpt-5.4-nano`.
 
-## Status startowy (stan kodu na dziś)
+## Status startowy (stan historyczny — 2026-01)
+> **Uwaga:** Ten opis był aktualny na start projektu. `chat:build-corpus` istnieje i działa
+> (`app/Actions/BuildCorpus.php` + `app/Console/Commands/BuildCorpusCommand.php` wdrożone,
+> zintegrowane z kings5-docs). Reszta (enumy, tabele aplikacyjne, klient/walidator, UI AI) —
+> wciąż do budowy wg ROADMAP.
+
 Skorupa: frontend + chat **mock** (`Chat.php:95` placeholder) + Filament + auth + domyślne tabele Laravela.
-**Zero** produktu AI: brak `app/Actions`, `app/Enums`, `app/Console/Commands`, brak tabel aplikacyjnych, brak korpusu/klienta/walidatora. Wszystko poniżej budujemy od zera.
+~~**Zero** produktu AI~~ → `BuildCorpus` (Action + komenda) wdrożone i działające.
+Brak: `app/Enums`, tabel aplikacyjnych, klienta/walidatora. Wszystko inne budujemy od zera wg ROADMAP.
