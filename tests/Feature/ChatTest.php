@@ -170,4 +170,24 @@ class ChatTest extends TestCase
 
         $this->assertDatabaseMissing('messages', ['content' => 'Pytanie ponad budżet?']);
     }
+
+    public function test_welcome_shows_starter_suggestions(): void
+    {
+        config(['chat.suggestions' => ['Jak utworzyć nowe wydarzenie?']]);
+
+        Livewire::test(Chat::class)
+            ->assertSee('Jak utworzyć nowe wydarzenie?'); // starter chip under the greeting
+    }
+
+    public function test_clicking_a_suggestion_sends_it(): void
+    {
+        $this->writeCorpus();
+        $this->fakeAnswer();
+
+        Livewire::test(Chat::class)
+            ->call('ask', 'Jak się zalogować?')
+            ->assertSee('Wejdź na /admin');
+
+        $this->assertDatabaseHas('messages', ['role' => 'user', 'content' => 'Jak się zalogować?']);
+    }
 }

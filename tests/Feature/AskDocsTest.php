@@ -55,8 +55,8 @@ class AskDocsTest extends TestCase
     private function writeCorpus(): void
     {
         $units = [
-            ['answer_unit_id' => 'start.logowanie', 'content' => "## Logowanie\n\nWejdź na /admin i zaloguj się.", 'content_hash' => hash('sha256', 'logowanie'), 'intents' => [], 'canonical_url' => '/start/logowanie'],
-            ['answer_unit_id' => 'start.pulpit', 'content' => 'Pulpit pokazuje skróty.', 'content_hash' => hash('sha256', 'pulpit'), 'intents' => [], 'canonical_url' => '/start/pulpit'],
+            ['answer_unit_id' => 'start.logowanie', 'content' => "## Logowanie\n\nWejdź na /admin i zaloguj się.", 'content_hash' => hash('sha256', 'logowanie'), 'intents' => ['Jak się zalogować?', 'Gdzie jest panel administracyjny?'], 'canonical_url' => '/start/logowanie'],
+            ['answer_unit_id' => 'start.pulpit', 'content' => 'Pulpit pokazuje skróty.', 'content_hash' => hash('sha256', 'pulpit'), 'intents' => ['Co pokazuje pulpit?'], 'canonical_url' => '/start/pulpit'],
         ];
 
         @mkdir(dirname($this->corpusPath), 0775, true);
@@ -94,6 +94,7 @@ class AskDocsTest extends TestCase
         $this->assertStringNotContainsString('##', $result['body']); // heading markers stripped
         $this->assertSame('/start/logowanie', $result['sources'][0]['canonical_url']);
         $this->assertSame('Logowanie', $result['sources'][0]['title']); // descriptive label = unit heading
+        $this->assertSame([], $result['suggestions']); // no recovery chips on a successful answer
 
         $this->assertDatabaseHas('messages', ['role' => 'assistant', 'product_status' => 'answered']);
         $this->assertDatabaseHas('generations', ['operation_id' => 'op-answer', 'response_type' => 'answer', 'infra_status' => 'completed']);
@@ -137,6 +138,9 @@ class AskDocsTest extends TestCase
 
         $this->assertSame(ProductStatus::Abstained, $result['product_status']);
         $this->assertDatabaseHas('generations', ['operation_id' => 'op-oos', 'response_type' => 'out_of_scope']);
+        // Recovery (Faza 7): abstention offers answerable questions from candidate intents.
+        $this->assertNotEmpty($result['suggestions']);
+        $this->assertContains('Jak się zalogować?', $result['suggestions']);
     }
 
     public function test_empty_corpus_abstains_without_calling_the_model(): void

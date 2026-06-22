@@ -165,6 +165,11 @@ class AskDocs
         $accepted = $selection['accepted'];
         $body = $this->body($product, $accepted, ! $selection['technical']);
         $sources = $this->sources($accepted);
+        // Recovery (Faza 7): on a domain abstention, offer answerable questions
+        // from the nearest retrieved units' intents — not on a technical failure.
+        $suggestions = ($product === ProductStatus::Abstained && ! $selection['technical'])
+            ? $this->suggestionsFrom($candidates)
+            : [];
 
         $assistant = DB::transaction(function () use ($generation, $userMessage, $candidates, $selection, $product, $body) {
             $assistant = Message::create([
@@ -210,7 +215,7 @@ class AskDocs
             return $assistant;
         });
 
-        return $this->result($assistant, $product, $body, $sources);
+        return $this->result($assistant, $product, $body, $sources, $suggestions);
     }
 
     /**
@@ -440,15 +445,46 @@ class AskDocs
 
     /**
      * @param  list<array{answer_unit_id: string, title: string, canonical_url: string}>  $sources
-     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, title: string, canonical_url: string}>}
+     * @param  list<string>  $suggestions
+     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, title: string, canonical_url: string}>, suggestions: list<string>}
      */
-    private function result(Message $message, ProductStatus $product, string $body, array $sources): array
+    private function result(Message $message, ProductStatus $product, string $body, array $sources, array $suggestions = []): array
     {
         return [
             'message' => $message,
             'product_status' => $product,
             'body' => $body,
             'sources' => $sources,
+            'suggestions' => $suggestions,
         ];
+    }
+
+    /**
+     * Recovery suggestions (Faza 7): answerable questions taken from the intents
+     * of the nearest retrieved units, deduped and capped. These are the source of
+     * the "Może chodziło Ci o…" chips when the model abstains — every chip leads
+     * to a grounded answer, never another abstention.
+     *
+     * @param  list<array<string, mixed>>  $candidates
+     * @return list<string>
+     */
+    private function suggestionsFrom(array $candidates, int $limit = 3): array
+    {
+        $seen = [];
+
+        foreach ($candidates as $unit) {
+            foreach ((array) ($unit['intents'] ?? []) as $intent) {
+                $intent = trim((string) $intent);
+                if ($intent === '') {
+                    continue;
+                }
+                $seen[mb_strtolower($intent)] ??= $intent;
+                if (count($seen) >= $limit) {
+                    return array_values($seen);
+                }
+            }
+        }
+
+        return array_values($seen);
     }
 }

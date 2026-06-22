@@ -31,4 +31,22 @@ return [
 
     'daily_budget_usd' => (float) env('AI_DAILY_BUDGET_USD', 1.0),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Starter suggestions (guide the hesitant user)
+    |--------------------------------------------------------------------------
+    |
+    | Clickable chips shown under the welcome message. Keep them ANSWERABLE
+    | (mapped to real corpus topics) — a chip that leads to an abstention erodes
+    | trust. Recovery suggestions on abstention are derived live from the corpus
+    | intents of the nearest retrieved units (see App\Actions\AskDocs).
+    |
+    */
+
+    'suggestions' => [
+        'Jak utworzyć nowe wydarzenie?',
+        'Jak zmienić logo i kolory strony?',
+        'Jakie rozmiary zdjęć obowiązują w panelu?',
+    ],
+
 ];

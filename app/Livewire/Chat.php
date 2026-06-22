@@ -95,9 +95,19 @@ class Chat extends Component
         $this->reset('question');
 
         $result = $askDocs->handle($userMessage, (string) Str::uuid());
-        $this->messages[] = $this->toBubble($result['message'], $result['sources']);
+        $this->messages[] = $this->toBubble($result['message'], $result['sources'], $result['suggestions']);
 
         $this->dispatch('chat-updated');
+    }
+
+    /**
+     * Ask a suggested question (starter / recovery chip) — set it and send.
+     */
+    public function ask(string $question): void
+    {
+        $this->question = $question;
+
+        app()->call([$this, 'sendMessage']);
     }
 
     public function rate(int $messageId, string $rating): void
@@ -179,15 +189,17 @@ class Chat extends Component
             'text' => 'Witaj! Zadaj pytanie o panel KINGS — odpowiem wyłącznie na podstawie dokumentacji i wskażę źródło.',
             'time' => now()->format('H:i'),
             'sources' => [],
+            'suggestions' => array_values((array) config('chat.suggestions', [])),
             'rating' => null,
         ];
     }
 
     /**
-     * @param  list<array{answer_unit_id: string, canonical_url: string}>|null  $sources
+     * @param  list<array{answer_unit_id: string, title: string, canonical_url: string}>|null  $sources
+     * @param  list<string>  $suggestions
      * @return array<string, mixed>
      */
-    private function toBubble(Message $message, ?array $sources = null): array
+    private function toBubble(Message $message, ?array $sources = null, array $suggestions = []): array
     {
         $isAssistant = $message->role === MessageRole::Assistant;
 
@@ -197,6 +209,7 @@ class Chat extends Component
             'text' => $message->content,
             'time' => $message->created_at?->format('H:i') ?? now()->format('H:i'),
             'sources' => $sources ?? ($isAssistant ? app(AskDocs::class)->sourcesFor($message) : []),
+            'suggestions' => $suggestions,
             'rating' => $message->rating?->value,
         ];
     }
