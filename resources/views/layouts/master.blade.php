@@ -12,6 +12,9 @@
     <meta name="keywords" content="@yield('meta_keywords', 'KINGS, dokumentacja, asystent AI')">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    {{-- Favicon — SVG wystarcza dla nowoczesnych przeglądarek; .ico nie jest wymagany. --}}
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+
     {{-- Fonts (Google) --}}
     <link href="https://fonts.googleapis.com" rel="preconnect">
     <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
