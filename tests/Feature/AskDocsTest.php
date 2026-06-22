@@ -93,6 +93,7 @@ class AskDocsTest extends TestCase
         $this->assertStringContainsString('Wejdź na /admin', $result['body']);
         $this->assertStringNotContainsString('##', $result['body']); // heading markers stripped
         $this->assertSame('/start/logowanie', $result['sources'][0]['canonical_url']);
+        $this->assertSame('Logowanie', $result['sources'][0]['title']); // descriptive label = unit heading
 
         $this->assertDatabaseHas('messages', ['role' => 'assistant', 'product_status' => 'answered']);
         $this->assertDatabaseHas('generations', ['operation_id' => 'op-answer', 'response_type' => 'answer', 'infra_status' => 'completed']);

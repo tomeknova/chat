@@ -38,7 +38,7 @@ class AskDocs
      * atomically reserve the operation, call the model OUTSIDE any transaction,
      * then finalize. A crashed executor (expired lease) is reclaimed via CAS.
      *
-     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, canonical_url: string}>}
+     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, title: string, canonical_url: string}>}
      */
     public function handle(Message $userMessage, string $operationId): array
     {
@@ -131,7 +131,7 @@ class AskDocs
     /**
      * We own the reservation: retrieve, select (OUTSIDE any transaction), finalize.
      *
-     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, canonical_url: string}>}
+     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, title: string, canonical_url: string}>}
      */
     private function process(Message $userMessage, Generation $generation): array
     {
@@ -157,7 +157,7 @@ class AskDocs
     /**
      * @param  list<array<string, mixed>>  $candidates
      * @param  array<string, mixed>  $selection
-     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, canonical_url: string}>}
+     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, title: string, canonical_url: string}>}
      */
     private function finalize(Generation $generation, Message $userMessage, array $candidates, array $selection): array
     {
@@ -250,7 +250,7 @@ class AskDocs
      * Another executor holds a valid lease (or the operation_id conflicts): return
      * a transient (unstored) degradation — the real answer comes from that executor.
      *
-     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, canonical_url: string}>}
+     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, title: string, canonical_url: string}>}
      */
     private function busy(Message $userMessage, bool $conflict = false): array
     {
@@ -310,7 +310,7 @@ class AskDocs
 
     /**
      * @param  list<array<string, mixed>>  $accepted
-     * @return list<array{answer_unit_id: string, canonical_url: string}>
+     * @return list<array{answer_unit_id: string, title: string, canonical_url: string}>
      */
     private function sources(array $accepted): array
     {
@@ -325,6 +325,7 @@ class AskDocs
             $seen[$url] = true;
             $sources[] = [
                 'answer_unit_id' => (string) $unit['answer_unit_id'],
+                'title' => $this->titleOf((string) $unit['content']),
                 'canonical_url' => $this->fullUrl($url),
             ];
         }
@@ -340,9 +341,23 @@ class AskDocs
     }
 
     /**
+     * Descriptive source label = the unit's first markdown heading (fallback: first line).
+     */
+    private function titleOf(string $content): string
+    {
+        if (preg_match('/^#{1,6}\s+(.+)$/m', $content, $matches) === 1) {
+            return trim($matches[1]);
+        }
+
+        $first = trim((string) strtok($content, "\n"));
+
+        return $first === '' ? 'dokumentacja' : mb_strimwidth($first, 0, 80, '…');
+    }
+
+    /**
      * Rebuild a result from an already-stored generation (idempotency / history).
      *
-     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, canonical_url: string}>}
+     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, title: string, canonical_url: string}>}
      */
     private function rebuild(Generation $generation): array
     {
@@ -356,7 +371,7 @@ class AskDocs
      * Resolve display sources (links) for an answered assistant message from its
      * validated units + the current corpus. Used for history rendering.
      *
-     * @return list<array{answer_unit_id: string, canonical_url: string}>
+     * @return list<array{answer_unit_id: string, title: string, canonical_url: string}>
      */
     public function sourcesFor(Message $assistant): array
     {
@@ -392,15 +407,19 @@ class AskDocs
                 continue;
             }
             $seen[$url] = true;
-            $sources[] = ['answer_unit_id' => $unit->answer_unit_id, 'canonical_url' => $url];
+            $sources[] = [
+                'answer_unit_id' => $unit->answer_unit_id,
+                'title' => $this->titleOf((string) $candidate['content']),
+                'canonical_url' => $url,
+            ];
         }
 
         return $sources;
     }
 
     /**
-     * @param  list<array{answer_unit_id: string, canonical_url: string}>  $sources
-     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, canonical_url: string}>}
+     * @param  list<array{answer_unit_id: string, title: string, canonical_url: string}>  $sources
+     * @return array{message: Message, product_status: ProductStatus, body: string, sources: list<array{answer_unit_id: string, title: string, canonical_url: string}>}
      */
     private function result(Message $message, ProductStatus $product, string $body, array $sources): array
     {

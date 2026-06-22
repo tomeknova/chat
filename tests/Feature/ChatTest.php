@@ -82,7 +82,7 @@ class ChatTest extends TestCase
             ->call('sendMessage')
             ->assertSet('question', '')
             ->assertSee('Wejdź na /admin')
-            ->assertSee('Źródło w dokumentacji');
+            ->assertSee('Źródło: Logowanie'); // descriptive label = unit heading
 
         $this->assertDatabaseHas('messages', ['role' => 'user', 'content' => 'Jak się zalogować?']);
         $this->assertDatabaseHas('messages', ['role' => 'assistant', 'product_status' => 'answered']);

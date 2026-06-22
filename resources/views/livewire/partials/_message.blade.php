@@ -24,7 +24,7 @@
                     @foreach ($sources as $source)
                         <a href="{{ $source['canonical_url'] }}" target="_blank" rel="noopener"
                             class="d-inline-flex align-items-center gap-1 small">
-                            <i class="bi bi-link-45deg"></i> Źródło w dokumentacji
+                            <i class="bi bi-link-45deg"></i> Źródło: {{ $source['title'] ?? 'dokumentacja' }}
                         </a>
                     @endforeach
                 </div>

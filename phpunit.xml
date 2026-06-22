@@ -32,5 +32,9 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Pin AskDocs routing so tests are hermetic (independent of local .env). -->
+        <env name="ASKDOCS_PROVIDER" value="openrouter"/>
+        <env name="ASKDOCS_FALLBACK" value=""/>
+        <env name="ASKDOCS_RETRIEVER" value="full"/>
     </php>
 </phpunit>
