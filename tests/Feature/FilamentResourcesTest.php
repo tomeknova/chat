@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ProcessingStatus;
 use App\Filament\Resources\Generations\Pages\ListGenerations;
+use App\Filament\Resources\Generations\Pages\ViewGeneration;
 use App\Filament\Resources\Messages\Pages\ListMessages;
 use App\Filament\Resources\Messages\Pages\ViewMessage;
 use App\Models\Generation;
@@ -58,5 +60,22 @@ class FilamentResourcesTest extends TestCase
         Livewire::test(ListGenerations::class)
             ->assertOk()
             ->assertCanSeeTableRecords($generations);
+    }
+
+    public function test_generation_view_loads_with_status_and_attempts_telemetry(): void
+    {
+        $generation = Generation::factory()->create([
+            'status' => ProcessingStatus::Completed,
+            'execution_attempt' => 2,
+            'metadata' => ['attempts' => [
+                ['provider' => 'bielik', 'model' => 'bielik-11b-v3-q80:latest', 'status' => 'grounding_violation', 'fallbackable' => true],
+                ['provider' => 'openrouter', 'model' => 'openai/gpt-5.4-nano', 'status' => 'completed', 'fallbackable' => false],
+            ]],
+        ]);
+
+        Livewire::test(ViewGeneration::class, ['record' => $generation->getRouteKey()])
+            ->assertOk()
+            ->assertSee('bielik')
+            ->assertSee('openrouter');
     }
 }

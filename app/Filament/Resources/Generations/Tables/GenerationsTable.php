@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Generations\Tables;
 
 use App\Enums\InfraStatus;
+use App\Enums\ProcessingStatus;
 use App\Enums\ResponseType;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -30,8 +31,13 @@ class GenerationsTable
                     ->badge()
                     ->formatStateUsing(fn ($state): string => $state?->label() ?? '—')
                     ->color(fn ($state): string => $state?->color() ?? 'gray'),
+                TextColumn::make('status')
+                    ->label('Etap')
+                    ->badge()
+                    ->formatStateUsing(fn ($state): string => $state?->label() ?? '—')
+                    ->color(fn ($state): string => $state?->color() ?? 'gray'),
                 TextColumn::make('infra_status')
-                    ->label('Status')
+                    ->label('Status techn.')
                     ->badge()
                     ->formatStateUsing(fn ($state): string => $state?->label() ?? '—')
                     ->color(fn ($state): string => $state?->color() ?? 'gray'),
@@ -49,8 +55,9 @@ class GenerationsTable
                     ->sortable(),
             ])
             ->filters([
+                SelectFilter::make('status')->label('Etap')->options(ProcessingStatus::options()),
                 SelectFilter::make('response_type')->label('Typ')->options(ResponseType::options()),
-                SelectFilter::make('infra_status')->label('Status')->options(InfraStatus::options()),
+                SelectFilter::make('infra_status')->label('Status techn.')->options(InfraStatus::options()),
             ])
             ->recordActions([
                 ViewAction::make(),

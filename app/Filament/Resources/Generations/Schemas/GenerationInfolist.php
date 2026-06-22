@@ -22,9 +22,28 @@ class GenerationInfolist
                     ->label('Status techniczny')
                     ->badge()
                     ->formatStateUsing(fn ($state): string => $state?->label() ?? '—'),
+                TextEntry::make('status')
+                    ->label('Etap (lifecycle)')
+                    ->badge()
+                    ->formatStateUsing(fn ($state): string => $state?->label() ?? '—'),
+                TextEntry::make('execution_attempt')->label('Próba wykonania')->numeric()->placeholder('—'),
+                TextEntry::make('lease_expires_at')->label('Lease do')->dateTime('Y-m-d H:i:s')->placeholder('—'),
                 TextEntry::make('input_tokens')->label('Tokeny wejściowe')->numeric()->placeholder('—'),
                 TextEntry::make('output_tokens')->label('Tokeny wyjściowe')->numeric()->placeholder('—'),
                 TextEntry::make('cost')->label('Koszt (USD)')->numeric(decimalPlaces: 6)->placeholder('—'),
+                TextEntry::make('attempts')
+                    ->label('Próby (failover)')
+                    ->state(fn ($record): array => collect($record->metadata['attempts'] ?? [])
+                        ->map(fn (array $attempt): string => sprintf(
+                            '%s — %s%s',
+                            $attempt['provider'] ?? '?',
+                            $attempt['status'] ?? '?',
+                            ($attempt['fallbackable'] ?? false) ? ' (fallbackable)' : '',
+                        ))
+                        ->all())
+                    ->listWithLineBreaks()
+                    ->bulleted()
+                    ->placeholder('—'),
                 TextEntry::make('created_at')->label('Data')->dateTime('Y-m-d H:i')->placeholder('—'),
             ]);
     }
