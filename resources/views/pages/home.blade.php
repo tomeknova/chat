@@ -15,9 +15,6 @@
                     Odpowiada wyłącznie na podstawie dokumentacji i wskazuje link do właściwej
                     strony instrukcji. Bez zgadywania — gdy czegoś nie ma w docs, powie wprost.
                 </p>
-                <div class="hero-buttons">
-                    <a href="#chat" class="btn-get-started">Zadaj pytanie</a>
-                </div>
             </div>
         </div>
     </section>
