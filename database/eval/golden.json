@@ -1,0 +1,17 @@
+{
+  "_comment": "Golden dataset for chat:eval. question -> expected answer_unit_id(s). Paraphrased on purpose (vocabulary differs from corpus intents) to stress retrieval. Add real user questions here over time.",
+  "items": [
+    {"question": "Gdzie wpisać adres, żeby wejść do panelu administracyjnego?", "expected": ["start.logowanie"]},
+    {"question": "Jak przełączyć się na inne wydarzenie w panelu?", "expected": ["start.aktywne-wydarzenie.jak-zmienic-aktywne-wydarzenie"]},
+    {"question": "Gdzie znajdę przycisk do otwarcia ustawień wydarzenia?", "expected": ["tresc.ustawienia-wydarzenia.jak-ja-otworzyc"]},
+    {"question": "W którym miejscu zmienię logo i kolory strony?", "expected": ["tresc.ustawienia-wydarzenia.theme-wyglad-i-branding"]},
+    {"question": "Jak skonfigurować płatności przez Stripe?", "expected": ["tresc.ustawienia-wydarzenia.platnosci"]},
+    {"question": "Jaki maksymalny rozmiar pliku zdjęcia mogę wgrać?", "expected": ["tresc.zdjecia-i-multimedia.tabela-rozmiarow-wszystkie-pola-w-panelu"]},
+    {"question": "Kiedy lepiej użyć WebP zamiast PNG?", "expected": ["tresc.zdjecia-i-multimedia.format-pliku-kiedy-jpeg-png-svg"]},
+    {"question": "Po co jest tekst alternatywny przy obrazkach?", "expected": ["tresc.zdjecia-i-multimedia.tekst-alternatywny-alt-co-to-jest-i-dlaczego-wazny"]},
+    {"question": "Jak wgrać zdjęcie krok po kroku?", "expected": ["tresc.zdjecia-i-multimedia.jak-wgrac-zdjecie-krok-po-kroku"]},
+    {"question": "Jak podmienić baner powitalny na górze strony?", "expected": ["tresc.edytor-tresci.hero-banner-glowny"]},
+    {"question": "Ile megabajtów może ważyć grafika w panelu?", "expected": ["tresc.zdjecia-i-multimedia.tabela-rozmiarow-wszystkie-pola-w-panelu"]},
+    {"question": "Jak zmienić motyw kolorystyczny strony wydarzenia?", "expected": ["tresc.ustawienia-wydarzenia.theme-wyglad-i-branding"]}
+  ]
+}
