@@ -16,8 +16,12 @@
 <div wire:key="msg-{{ $bubbleKey }}" class="message-group {{ $isUser ? 'sent' : 'received' }}">
     <div class="message-content">
         <div class="message-bubble">
-            {{-- Assistant content is rendered escaped (never raw model/doc HTML). --}}
-            {!! nl2br(e($message['text'])) !!}
+            @if ($isUser)
+                {!! nl2br(e($message['text'])) !!}
+            @else
+                {{-- Doc Markdown → HTML; raw HTML in docs is escaped (html_input=escape). --}}
+                <div class="answer-content">{!! \Illuminate\Support\Str::markdown($message['text'], ['html_input' => 'escape', 'allow_unsafe_links' => false]) !!}</div>
+            @endif
 
             @if (! $isUser && ! empty($sources))
                 <div class="mt-2 d-flex flex-column gap-1">

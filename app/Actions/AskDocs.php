@@ -294,18 +294,39 @@ class AskDocs
     }
 
     /**
-     * Verbatim unit content for display: strip markdown heading markers, escape later in Blade.
+     * Verbatim unit content for display, normalized to clean Markdown (rendered to
+     * HTML in the view): drop the unit's title heading (surfaced as the source
+     * label), unwrap VitePress ::: containers, and resolve root-relative doc
+     * links/images to the docs base URL. Raw HTML stays escaped at render time.
      *
      * @param  list<array<string, mixed>>  $accepted
      */
     private function composeUnits(array $accepted): string
     {
         $parts = array_map(
-            fn (array $unit): string => trim((string) preg_replace('/^#{1,6}\s+/m', '', (string) $unit['content'])),
+            fn (array $unit): string => $this->normalizeMarkdown((string) $unit['content']),
             $accepted,
         );
 
         return implode("\n\n", $parts);
+    }
+
+    private function normalizeMarkdown(string $content): string
+    {
+        // Drop the leading title heading (it is surfaced as the source label).
+        $content = (string) preg_replace('/\A\h*#{1,6}\h+[^\n]*\n*/u', '', $content);
+
+        // Unwrap VitePress containers (::: warning … :::) — keep the inner text.
+        $content = (string) preg_replace('/^:::\h*\w+\h*/m', '', $content); // opening fence + type
+        $content = (string) preg_replace('/^:::\h*$/m', '', $content);      // closing fence
+
+        // Resolve root-relative doc links/images to the docs base URL.
+        $base = rtrim((string) config('corpus.base_url'), '/');
+        if ($base !== '') {
+            $content = (string) preg_replace('/\]\((\/[^)]*)\)/', ']('.$base.'$1)', $content);
+        }
+
+        return trim($content);
     }
 
     /**

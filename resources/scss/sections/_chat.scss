@@ -91,6 +91,61 @@
   word-wrap: break-word;
 }
 
+// Rendered documentation Markdown inside an assistant bubble — keep it clean
+// and professional: real tables, scaled headings, contained images.
+.answer-content {
+  > :first-child { margin-top: 0; }
+  > :last-child { margin-bottom: 0; }
+
+  p { margin: 0.4rem 0; }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0.6rem 0 0.3rem;
+    line-height: 1.3;
+  }
+
+  ul, ol { margin: 0.3rem 0 0.3rem 1.15rem; padding: 0; }
+  li { margin: 0.15rem 0; }
+
+  a { color: var(--accent-color, #0d6efd); text-decoration: underline; }
+
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    margin: 0.5rem 0;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+    font-size: 0.85em;
+  }
+
+  // Tables can be wide — allow horizontal scroll on narrow screens.
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    font-size: 0.875rem;
+    display: block;
+    overflow-x: auto;
+  }
+
+  th, td {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    padding: 0.35rem 0.55rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th { background: rgba(0, 0, 0, 0.04); font-weight: 600; }
+}
+
 .message-time {
   font-size: 0.6875rem;
   color: var(--muted-color);
