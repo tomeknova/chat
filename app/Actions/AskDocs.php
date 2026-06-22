@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Actions\Corpus\CandidateRetriever;
+use App\Actions\Corpus\FullCorpusRetriever;
 use App\AskDocs\Contracts\AnswerUnitSelector;
 use App\Enums\MessageRole;
 use App\Enums\ProcessingStatus;
@@ -29,6 +30,7 @@ class AskDocs
     public function __construct(
         private readonly CandidateRetriever $retriever,
         private readonly AnswerUnitSelector $selector,
+        private readonly FullCorpusRetriever $fullCorpus,
     ) {}
 
     /**
@@ -142,12 +144,54 @@ class AskDocs
                 ? $this->emptyCorpusSelection()
                 : $this->selector->select($candidates, $userMessage->content);
 
+            // Domain escalation: primary abstained (non-technical) → retry with
+            // full corpus + fallback provider (e.g. OpenRouter). Next question
+            // starts fresh with the primary — no persistent state change.
+            if ($selection['outcome'] === ProductStatus::Abstained && ! $selection['technical']) {
+                [$candidates, $selection] = $this->escalate($userMessage->content, $candidates, $selection);
+            }
+
             return $this->finalize($generation, $userMessage, $candidates, $selection);
         } catch (Throwable $e) {
             $generation->update(['status' => ProcessingStatus::Failed]);
 
             throw $e;
         }
+    }
+
+    /**
+     * Domain escalation: re-retrieve with the full corpus and try the fallback
+     * provider. Returns the escalated result if it answered; otherwise returns
+     * the original abstention so the caller can show recovery chips.
+     *
+     * @param  list<array<string, mixed>>  $candidates
+     * @param  array<string, mixed>  $selection
+     * @return array{0: list<array<string, mixed>>, 1: array<string, mixed>}
+     */
+    private function escalate(string $question, array $candidates, array $selection): array
+    {
+        if (! config('askdocs.escalate_on_abstention')) {
+            return [$candidates, $selection];
+        }
+
+        /** @var ?AnswerUnitSelector $escalationSelector */
+        $escalationSelector = app('askdocs.escalation-selector');
+        if ($escalationSelector === null) {
+            return [$candidates, $selection];
+        }
+
+        $fullCandidates = $this->fullCorpus->retrieve($question);
+        if ($fullCandidates === []) {
+            return [$candidates, $selection];
+        }
+
+        $escalated = $escalationSelector->select($fullCandidates, $question);
+
+        if ($escalated['outcome'] === ProductStatus::Answered) {
+            return [$fullCandidates, $escalated];
+        }
+
+        return [$candidates, $selection];
     }
 
     // =========================================================================

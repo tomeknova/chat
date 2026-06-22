@@ -38,6 +38,26 @@ class AskDocsServiceProvider extends ServiceProvider
                 $app->make(CircuitBreaker::class),
             );
         });
+
+        // Escalation selector: fallback provider only (e.g. OpenRouter), used when
+        // the primary (Bielik) abstains and escalate_on_abstention is enabled.
+        $this->app->bind('askdocs.escalation-selector', function ($app): ?AnswerUnitSelector {
+            $fallback = config('askdocs.fallback');
+            if (! $fallback) {
+                return null;
+            }
+            /** @var array<string, mixed> $cfg */
+            $cfg = (array) config("askdocs.providers.{$fallback}", []);
+            if ($cfg === []) {
+                return null;
+            }
+
+            return new FailoverAnswerUnitSelector(
+                [$fallback => $this->adapter($cfg)],
+                $app->make(GroundingValidator::class),
+                $app->make(CircuitBreaker::class),
+            );
+        });
     }
 
     /**

@@ -177,6 +177,44 @@ class AskDocsTest extends TestCase
         $this->assertSame($starters, $result['suggestions']);
     }
 
+    public function test_domain_escalation_retries_with_full_corpus_when_primary_abstains(): void
+    {
+        $this->writeCorpus();
+
+        // Configure a second provider for the escalation selector.
+        config([
+            'askdocs.fallback' => 'openrouter2',
+            'askdocs.escalate_on_abstention' => true,
+            'askdocs.providers.openrouter2' => [
+                'driver' => 'openrouter',
+                'base_url' => 'https://openrouter2.ai/api/v1',
+                'key' => 'test-key',
+                'model' => 'openai/gpt-5.4-nano',
+                'providers' => ['openai'],
+            ],
+        ]);
+
+        Http::fake([
+            // Primary abstains.
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'out_of_scope', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5, 'cost' => 0.0001],
+            ]),
+            // Escalation (fallback) answers with a valid unit.
+            'openrouter2.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['start.logowanie']])]]],
+                'usage' => ['prompt_tokens' => 200, 'completion_tokens' => 15, 'cost' => 0.0002],
+            ]),
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage('Stolica Australii?'), 'op-escalate');
+
+        $this->assertSame(ProductStatus::Answered, $result['product_status']);
+        $this->assertStringContainsString('Wejdź na /admin', $result['body']);
+        $this->assertSame([], $result['suggestions']); // answered → no chips
+        Http::assertSentCount(2); // primary + escalation
+    }
+
     public function test_idempotent_on_repeated_operation_id(): void
     {
         $existing = Generation::factory()->create(['operation_id' => 'op-dup']);

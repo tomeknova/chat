@@ -20,6 +20,13 @@ return [
     // (grounding-in-attempt + failover). e.g. ASKDOCS_PROVIDER=bielik + ASKDOCS_FALLBACK=openrouter.
     'fallback' => env('ASKDOCS_FALLBACK'),
 
+    // Domain escalation: when the primary abstains (out_of_scope, non-technical),
+    // retry with the fallback provider using the FULL corpus. The next question
+    // starts fresh with the primary — there is no persistent switch.
+    // Adds one extra AI call per abstention — only enable when the primary is a
+    // small local model (Bielik) and the fallback has large context (OpenRouter).
+    'escalate_on_abstention' => (bool) env('ASKDOCS_ESCALATE_ON_ABSTENTION', false),
+
     'providers' => [
 
         'openrouter' => [
