@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Enums\MessageRole;
+use App\Enums\ProductStatus;
 use App\Enums\Rating;
 use App\Livewire\Chat;
+use App\Models\Conversation;
 use App\Models\Generation;
 use App\Models\Message;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -189,5 +191,37 @@ class ChatTest extends TestCase
             ->assertSee('Wejdź na /admin');
 
         $this->assertDatabaseHas('messages', ['role' => 'user', 'content' => 'Jak się zalogować?']);
+    }
+
+    public function test_reset_clears_the_conversation_and_returns_to_welcome(): void
+    {
+        $this->writeCorpus();
+        $this->fakeAnswer();
+
+        $component = Livewire::test(Chat::class)
+            ->set('question', 'Jak się zalogować?')
+            ->call('sendMessage');
+
+        $this->assertDatabaseCount('messages', 2); // user + assistant
+
+        $component->call('resetChat')->assertSee('Witaj!');
+
+        $this->assertDatabaseCount('messages', 0); // conversation deleted → cascade
+        $this->assertNull($component->get('conversationId'));
+    }
+
+    public function test_returning_user_gets_starter_suggestions_on_history(): void
+    {
+        config(['chat.suggestions' => ['Jak utworzyć nowe wydarzenie?']]);
+
+        $hash = hash('sha256', (string) config('chat.owner_token_pepper').'token-ret');
+        $conversation = Conversation::factory()->create(['owner_token_hash' => $hash]);
+        $conversation->messages()->create(['role' => MessageRole::User, 'content' => 'pytanie', 'normalized_question_hash' => 'h']);
+        $conversation->messages()->create(['role' => MessageRole::Assistant, 'content' => 'odpowiedź', 'product_status' => ProductStatus::Abstained]);
+
+        // Returning user: greeting is skipped, so starters attach to the last assistant bubble.
+        Livewire::withCookies(['kings_chat_owner' => 'token-ret'])
+            ->test(Chat::class)
+            ->assertSee('Jak utworzyć nowe wydarzenie?');
     }
 }

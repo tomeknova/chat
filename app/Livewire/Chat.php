@@ -59,9 +59,14 @@ class Chat extends Component
 
         $history = $conversation->messages()->oldest()->get();
 
-        $this->messages = $history->isEmpty()
-            ? [$this->greeting()]
-            : $history->map(fn (Message $message): array => $this->toBubble($message))->all();
+        if ($history->isEmpty()) {
+            $this->messages = [$this->greeting()];
+
+            return;
+        }
+
+        $this->messages = $history->map(fn (Message $message): array => $this->toBubble($message))->all();
+        $this->attachStartersToLastAssistant();
     }
 
     public function sendMessage(AskDocs $askDocs, RedactPii $redactPii, AiGate $aiGate): void
@@ -108,6 +113,23 @@ class Chat extends Component
         $this->question = $question;
 
         app()->call([$this, 'sendMessage']);
+    }
+
+    /**
+     * Reset the chat: drop the current conversation (cascades to messages +
+     * generations) and return to the welcome state.
+     */
+    public function resetChat(): void
+    {
+        if ($this->conversationId !== null) {
+            Conversation::find($this->conversationId)?->delete();
+        }
+
+        $this->conversationId = null;
+        $this->messages = [$this->greeting()];
+        $this->reset('question');
+        $this->resetErrorBag();
+        $this->dispatch('chat-updated');
     }
 
     public function rate(int $messageId, string $rating): void
@@ -176,6 +198,29 @@ class Chat extends Component
         $this->conversationId = $conversation->id;
 
         return $conversation;
+    }
+
+    /**
+     * Returning users skip the welcome bubble, so attach the starter suggestions
+     * to the last assistant bubble (when it has none) — they still get guidance.
+     */
+    private function attachStartersToLastAssistant(): void
+    {
+        $starters = array_values((array) config('chat.suggestions', []));
+        if ($starters === []) {
+            return;
+        }
+
+        for ($i = count($this->messages) - 1; $i >= 0; $i--) {
+            if (($this->messages[$i]['role'] ?? null) !== MessageRole::Assistant->value) {
+                continue;
+            }
+            if (empty($this->messages[$i]['suggestions'])) {
+                $this->messages[$i]['suggestions'] = $starters;
+            }
+
+            return;
+        }
     }
 
     /**

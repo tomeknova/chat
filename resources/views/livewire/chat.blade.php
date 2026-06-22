@@ -9,6 +9,17 @@
 --}}
 <div class="chat-window">
 
+    {{-- Header --}}
+    <div class="chat-header">
+        <span class="chat-header-title"><i class="bi bi-robot"></i> Asystent dokumentacji KINGS</span>
+        <button type="button" class="chat-reset-btn"
+            wire:click="resetChat"
+            wire:confirm="Wyczyścić rozmowę i zacząć od nowa?"
+            wire:loading.attr="disabled">
+            <i class="bi bi-arrow-clockwise"></i> Nowa rozmowa
+        </button>
+    </div>
+
     {{-- Messages --}}
     <div class="chat-messages"
         x-data
