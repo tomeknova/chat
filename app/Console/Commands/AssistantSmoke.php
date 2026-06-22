@@ -41,18 +41,18 @@ class AssistantSmoke extends Command
     {
         $question = (string) $this->option('question');
 
-        $response = Http::withToken((string) config('ai.key'))
+        $response = Http::withToken((string) config('askdocs.providers.openrouter.key'))
             ->acceptJson()
             ->timeout(30)
-            ->post(rtrim((string) config('ai.base_url'), '/').'/chat/completions', [
-                'model' => config('ai.model'),
+            ->post(rtrim((string) config('askdocs.providers.openrouter.base_url'), '/').'/chat/completions', [
+                'model' => config('askdocs.providers.openrouter.model'),
                 'messages' => [
                     ['role' => 'system', 'content' => $this->systemPrompt()],
                     ['role' => 'user', 'content' => $question],
                 ],
                 'response_format' => $this->responseFormat(),
                 'provider' => [
-                    'only' => config('ai.providers'),
+                    'only' => config('askdocs.providers.openrouter.providers'),
                     'allow_fallbacks' => false,
                     'require_parameters' => true,
                     'data_collection' => 'deny',
@@ -110,7 +110,7 @@ class AssistantSmoke extends Command
         // 5) Report.
         $this->info('✔ Strict JSON OK');
         $this->line('Pytanie:         '.$question);
-        $this->line('model:           '.config('ai.model'));
+        $this->line('model:           '.config('askdocs.providers.openrouter.model'));
         $this->line('response_type:   '.$responseType);
         $this->line('answer_unit_ids: '.($unitIds === [] ? '(brak)' : implode(', ', $unitIds)));
 

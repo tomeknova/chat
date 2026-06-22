@@ -24,10 +24,14 @@ class ChatTest extends TestCase
 
         $this->corpusPath = storage_path('app/corpus/test-corpus-'.uniqid().'.json');
         config([
-            'ai.key' => 'test-key',
-            'ai.base_url' => 'https://openrouter.ai/api/v1',
-            'ai.model' => 'openai/gpt-5.4-nano',
-            'ai.providers' => ['openai', 'azure'],
+            'askdocs.default' => 'openrouter',
+            'askdocs.providers.openrouter' => [
+                'driver' => 'openrouter',
+                'base_url' => 'https://openrouter.ai/api/v1',
+                'key' => 'test-key',
+                'model' => 'openai/gpt-5.4-nano',
+                'providers' => ['openai', 'azure'],
+            ],
             'corpus.output_path' => $this->corpusPath,
             'corpus.base_url' => '',
         ]);

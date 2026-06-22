@@ -13,10 +13,13 @@ class AssistantSmokeTest extends TestCase
         parent::setUp();
 
         config([
-            'ai.key' => 'test-key',
-            'ai.base_url' => 'https://openrouter.ai/api/v1',
-            'ai.model' => 'openai/gpt-5.4-nano',
-            'ai.providers' => ['openai', 'azure'],
+            'askdocs.providers.openrouter' => [
+                'driver' => 'openrouter',
+                'base_url' => 'https://openrouter.ai/api/v1',
+                'key' => 'test-key',
+                'model' => 'openai/gpt-5.4-nano',
+                'providers' => ['openai', 'azure'],
+            ],
         ]);
 
         Http::preventStrayRequests();

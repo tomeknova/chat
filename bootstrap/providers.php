@@ -1,6 +1,11 @@
 <?php
 
+use App\AskDocs\AskDocsServiceProvider;
+use App\Providers\AppServiceProvider;
+use App\Providers\Filament\AdminPanelProvider;
+
 return [
-    App\Providers\AppServiceProvider::class,
-    App\Providers\Filament\AdminPanelProvider::class,
+    AskDocsServiceProvider::class,
+    AppServiceProvider::class,
+    AdminPanelProvider::class,
 ];

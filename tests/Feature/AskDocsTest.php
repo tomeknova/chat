@@ -3,12 +3,15 @@
 namespace Tests\Feature;
 
 use App\Actions\AskDocs;
+use App\AskDocs\Adapters\OllamaChatModel;
+use App\AskDocs\CircuitBreaker;
 use App\Enums\MessageRole;
 use App\Enums\ProductStatus;
 use App\Models\Conversation;
 use App\Models\Generation;
 use App\Models\Message;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -24,10 +27,14 @@ class AskDocsTest extends TestCase
 
         $this->corpusPath = storage_path('app/corpus/test-corpus-'.uniqid().'.json');
         config([
-            'ai.key' => 'test-key',
-            'ai.base_url' => 'https://openrouter.ai/api/v1',
-            'ai.model' => 'openai/gpt-5.4-nano',
-            'ai.providers' => ['openai', 'azure'],
+            'askdocs.default' => 'openrouter',
+            'askdocs.providers.openrouter' => [
+                'driver' => 'openrouter',
+                'base_url' => 'https://openrouter.ai/api/v1',
+                'key' => 'test-key',
+                'model' => 'openai/gpt-5.4-nano',
+                'providers' => ['openai', 'azure'],
+            ],
             'corpus.output_path' => $this->corpusPath,
             'corpus.base_url' => '',
         ]);
@@ -148,5 +155,90 @@ class AskDocsTest extends TestCase
         Http::assertNothingSent();
         $this->assertDatabaseCount('generations', 1);
         $this->assertSame($existing->id, Generation::firstWhere('operation_id', 'op-dup')->id);
+    }
+
+    public function test_falls_back_to_openrouter_when_bielik_grounding_fails(): void
+    {
+        // Primary = Bielik (returns a unit ∉ context → grounding violation),
+        // fallback = OpenRouter (grounds correctly). Grounding-in-attempt (Q).
+        $this->writeCorpus();
+        config([
+            'askdocs.default' => 'bielik',
+            'askdocs.fallback' => 'openrouter',
+            'askdocs.providers.bielik' => [
+                'driver' => 'ollama',
+                'base_url' => 'http://localhost:11434/v1',
+                'key' => null,
+                'model' => 'bielik-11b-v3-q80:latest',
+            ],
+        ]);
+
+        Http::fake([
+            'localhost:11434/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['zmyslona.jednostka']])]]],
+            ]),
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['start.logowanie']])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 10, 'cost' => 0.0001],
+            ]),
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage(), 'op-failover');
+
+        $this->assertSame(ProductStatus::Answered, $result['product_status']);
+        $this->assertSame('/start/logowanie', $result['sources'][0]['canonical_url']);
+        // Final generation = the provider that succeeded (OpenRouter), not Bielik.
+        $this->assertDatabaseHas('generations', ['operation_id' => 'op-failover', 'model' => 'openai/gpt-5.4-nano']);
+    }
+
+    public function test_skips_provider_with_open_circuit_without_calling_it(): void
+    {
+        $this->writeCorpus();
+        Cache::flush();
+        config([
+            'askdocs.default' => 'bielik',
+            'askdocs.fallback' => 'openrouter',
+            'askdocs.breaker.threshold' => 1, // one failure opens it
+            'askdocs.providers.bielik' => [
+                'driver' => 'ollama',
+                'base_url' => 'http://localhost:11434/v1',
+                'key' => null,
+                'model' => 'bielik-11b-v3-q80:latest',
+            ],
+        ]);
+
+        // Trip Bielik's circuit up-front.
+        (new CircuitBreaker)->recordFailure('bielik');
+
+        // Only OpenRouter is faked: a stray call to Bielik would throw (preventStrayRequests).
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['start.logowanie']])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 10, 'cost' => 0.0001],
+            ]),
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage(), 'op-open-circuit');
+
+        $this->assertSame(ProductStatus::Answered, $result['product_status']);
+        Http::assertSentCount(1); // Bielik never called
+        $this->assertDatabaseHas('generations', ['operation_id' => 'op-open-circuit', 'model' => 'openai/gpt-5.4-nano']);
+    }
+
+    public function test_adapter_does_not_call_provider_when_no_budget_left(): void
+    {
+        Http::fake();
+
+        $model = new OllamaChatModel([
+            'driver' => 'ollama',
+            'base_url' => 'http://localhost:11434/v1',
+            'model' => 'bielik-11b-v3-q80:latest',
+        ]);
+
+        // Zero remaining budget → treated as a timeout, no HTTP call made.
+        $result = $model->select([], 'pytanie testowe', 0);
+
+        $this->assertFalse($result['ok']);
+        Http::assertNothingSent();
     }
 }

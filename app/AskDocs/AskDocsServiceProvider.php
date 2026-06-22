@@ -1,0 +1,63 @@
+<?php
+
+namespace App\AskDocs;
+
+use App\AskDocs\Adapters\OllamaChatModel;
+use App\AskDocs\Adapters\OpenRouterChatModel;
+use App\AskDocs\Contracts\AnswerUnitSelector;
+use App\AskDocs\Contracts\ChatModel;
+use App\AskDocs\Selection\FailoverAnswerUnitSelector;
+use Illuminate\Support\ServiceProvider;
+
+/**
+ * Wires the AskDocs module. Binds the AnswerUnitSelector port to a failover
+ * chain of provider adapters (config('askdocs.default') → fallback), each
+ * grounded per attempt. AskDocs depends on the port, never on a concrete provider.
+ */
+class AskDocsServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->app->bind(AnswerUnitSelector::class, function ($app): AnswerUnitSelector {
+            $chain = [];
+            foreach ($this->chainProviderNames() as $name) {
+                /** @var array<string, mixed> $cfg */
+                $cfg = (array) config("askdocs.providers.{$name}", []);
+                if ($cfg === []) {
+                    continue;
+                }
+                $chain[$name] = $this->adapter($cfg);
+            }
+
+            return new FailoverAnswerUnitSelector(
+                $chain,
+                $app->make(GroundingValidator::class),
+                $app->make(CircuitBreaker::class),
+            );
+        });
+    }
+
+    /**
+     * Ordered, de-duplicated provider chain: primary then optional fallback.
+     *
+     * @return list<string>
+     */
+    private function chainProviderNames(): array
+    {
+        return array_values(array_unique(array_filter([
+            config('askdocs.default'),
+            config('askdocs.fallback'),
+        ])));
+    }
+
+    /**
+     * @param  array<string, mixed>  $cfg
+     */
+    private function adapter(array $cfg): ChatModel
+    {
+        return match ($cfg['driver'] ?? 'openrouter') {
+            'ollama' => new OllamaChatModel($cfg),
+            default => new OpenRouterChatModel($cfg),
+        };
+    }
+}
