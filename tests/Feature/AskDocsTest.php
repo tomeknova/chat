@@ -63,6 +63,67 @@ class AskDocsTest extends TestCase
         file_put_contents($this->corpusPath, json_encode(['units' => $units]));
     }
 
+    /**
+     * Wider corpus where lexical recall returns a STRICT SUBSET — so escalation to
+     * the full corpus genuinely adds context (drives the count-guard in escalate()).
+     * Only the ticket/payment units share stems with the escalation questions; the
+     * rest score 0 in lexical and are visible only via the full corpus.
+     */
+    private function writeWideCorpus(): void
+    {
+        $units = [
+            ['answer_unit_id' => 'bilety.sprzedaz', 'content' => "## Sprzedaż biletów\n\nW sekcji Bilety włączysz sprzedaż biletów.", 'content_hash' => hash('sha256', 'bilety'), 'intents' => ['Jak włączyć sprzedaż biletów?'], 'canonical_url' => '/bilety/sprzedaz'],
+            ['answer_unit_id' => 'platnosci.metody', 'content' => "## Płatności\n\nObsługujemy karty i przelewy.", 'content_hash' => hash('sha256', 'platnosci'), 'intents' => ['Jakie metody płatności?'], 'canonical_url' => '/platnosci/metody'],
+            ['answer_unit_id' => 'wyglad.logo', 'content' => "## Logo i kolory\n\nZmień logo w Wyglądzie.", 'content_hash' => hash('sha256', 'logo'), 'intents' => ['Jak zmienić logo?'], 'canonical_url' => '/wyglad/logo'],
+            ['answer_unit_id' => 'galeria.zdjecia', 'content' => "## Galeria\n\nDodaj zdjęcia do galerii.", 'content_hash' => hash('sha256', 'galeria'), 'intents' => ['Jak dodać zdjęcia?'], 'canonical_url' => '/galeria/zdjecia'],
+            ['answer_unit_id' => 'kontakt.dane', 'content' => "## Kontakt\n\nUzupełnij dane kontaktowe.", 'content_hash' => hash('sha256', 'kontakt'), 'intents' => ['Gdzie podać kontakt?'], 'canonical_url' => '/kontakt/dane'],
+        ];
+
+        @mkdir(dirname($this->corpusPath), 0775, true);
+        file_put_contents($this->corpusPath, json_encode(['units' => $units]));
+    }
+
+    /**
+     * Configure the Bielik→OpenRouter escalation shape used by the escalation tests:
+     * lexical primary retriever + a distinct fallback provider for the escalation
+     * selector (so primary and escalation hit different fake URLs).
+     */
+    private function configureEscalation(): void
+    {
+        config([
+            'askdocs.retrieval.driver' => 'lexical',
+            'askdocs.fallback' => 'openrouter2',
+            'askdocs.escalate_on_abstention' => true,
+            'askdocs.providers.openrouter2' => [
+                'driver' => 'openrouter',
+                'base_url' => 'https://openrouter2.ai/api/v1',
+                'key' => 'test-key',
+                'model' => 'openai/gpt-5.4-nano',
+                'providers' => ['openai'],
+            ],
+        ]);
+    }
+
+    /**
+     * The system prompt a fake provider received (units the model actually saw).
+     */
+    private function systemPromptSentTo(string $urlNeedle): string
+    {
+        foreach (Http::recorded() as [$request]) {
+            if (! str_contains($request->url(), $urlNeedle)) {
+                continue;
+            }
+            $messages = $request->data()['messages'] ?? [];
+            foreach ($messages as $message) {
+                if (($message['role'] ?? null) === 'system') {
+                    return (string) $message['content'];
+                }
+            }
+        }
+
+        return '';
+    }
+
     private function fakeModel(string $responseType, array $unitIds): void
     {
         Http::fake([
@@ -177,59 +238,72 @@ class AskDocsTest extends TestCase
         $this->assertSame($starters, $result['suggestions']);
     }
 
-    public function test_domain_escalation_retries_with_full_corpus_when_primary_abstains(): void
+    public function test_domain_escalation_recovers_when_lexical_misses_but_full_corpus_answers(): void
     {
-        $this->writeCorpus();
-
-        // Configure a second provider for the escalation selector.
-        config([
-            'askdocs.fallback' => 'openrouter2',
-            'askdocs.escalate_on_abstention' => true,
-            'askdocs.providers.openrouter2' => [
-                'driver' => 'openrouter',
-                'base_url' => 'https://openrouter2.ai/api/v1',
-                'key' => 'test-key',
-                'model' => 'openai/gpt-5.4-nano',
-                'providers' => ['openai'],
-            ],
-        ]);
+        // Bielik (lexical, narrow) abstains; OpenRouter on the FULL corpus answers.
+        $this->writeWideCorpus();
+        $this->configureEscalation();
 
         Http::fake([
-            // Primary abstains.
+            // Primary (lexical context) abstains.
             'openrouter.ai/*' => Http::response([
                 'choices' => [['message' => ['content' => json_encode(['response_type' => 'out_of_scope', 'answer_unit_ids' => []])]]],
                 'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5, 'cost' => 0.0001],
             ]),
-            // Escalation (fallback) answers with a valid unit.
+            // Escalation (full corpus) selects the relevant unit.
             'openrouter2.ai/*' => Http::response([
-                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['start.logowanie']])]]],
-                'usage' => ['prompt_tokens' => 200, 'completion_tokens' => 15, 'cost' => 0.0002],
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['bilety.sprzedaz']])]]],
+                'usage' => ['prompt_tokens' => 300, 'completion_tokens' => 15, 'cost' => 0.0002],
             ]),
         ]);
 
-        $result = app(AskDocs::class)->handle($this->userMessage('Stolica Australii?'), 'op-escalate');
+        $result = app(AskDocs::class)->handle($this->userMessage('Jak skonfigurować sprzedaż biletów?'), 'op-escalate');
 
         $this->assertSame(ProductStatus::Answered, $result['product_status']);
-        $this->assertStringContainsString('Wejdź na /admin', $result['body']);
+        $this->assertStringContainsString('włączysz sprzedaż', $result['body']);
         $this->assertSame([], $result['suggestions']); // answered → no chips
         Http::assertSentCount(2); // primary + escalation
+
+        // Context assertion (auditor F-04): the primary saw only the lexical subset,
+        // the escalation saw the broader corpus — proving the second call mattered.
+        $primaryPrompt = $this->systemPromptSentTo('openrouter.ai');
+        $escalationPrompt = $this->systemPromptSentTo('openrouter2.ai');
+        $this->assertStringContainsString('bilety.sprzedaz', $primaryPrompt);
+        $this->assertStringNotContainsString('wyglad.logo', $primaryPrompt); // lexical excluded it
+        $this->assertStringContainsString('wyglad.logo', $escalationPrompt); // full corpus included it
+    }
+
+    public function test_domain_escalation_merges_attempts_from_both_stages(): void
+    {
+        // Telemetry (auditor F-02): one generation row must record BOTH the primary
+        // (abstaining) attempt and the escalation (answering) attempt.
+        $this->writeWideCorpus();
+        $this->configureEscalation();
+
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'out_of_scope', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5, 'cost' => 0.0001],
+            ]),
+            'openrouter2.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['bilety.sprzedaz']])]]],
+                'usage' => ['prompt_tokens' => 300, 'completion_tokens' => 15, 'cost' => 0.0002],
+            ]),
+        ]);
+
+        app(AskDocs::class)->handle($this->userMessage('Jak skonfigurować sprzedaż biletów?'), 'op-merge');
+
+        $generation = Generation::firstWhere('operation_id', 'op-merge');
+        $providers = array_column($generation->metadata['attempts'], 'provider');
+        $this->assertContains('openrouter', $providers);  // primary (Bielik slot)
+        $this->assertContains('openrouter2', $providers); // escalation
+        $this->assertSame('abstained', $generation->metadata['primary_outcome'] ?? null); // what the primary decided
     }
 
     public function test_domain_escalation_triggers_on_needs_clarification(): void
     {
-        $this->writeCorpus();
-
-        config([
-            'askdocs.fallback' => 'openrouter2',
-            'askdocs.escalate_on_abstention' => true,
-            'askdocs.providers.openrouter2' => [
-                'driver' => 'openrouter',
-                'base_url' => 'https://openrouter2.ai/api/v1',
-                'key' => 'test-key',
-                'model' => 'openai/gpt-5.4-nano',
-                'providers' => ['openai'],
-            ],
-        ]);
+        $this->writeWideCorpus();
+        $this->configureEscalation();
 
         Http::fake([
             // Primary can't clarify.
@@ -239,16 +313,80 @@ class AskDocsTest extends TestCase
             ]),
             // Escalation answers with a valid unit.
             'openrouter2.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['bilety.sprzedaz']])]]],
+                'usage' => ['prompt_tokens' => 300, 'completion_tokens' => 15, 'cost' => 0.0002],
+            ]),
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage('Jak skonfigurować sprzedaż biletów?'), 'op-clarify-escalate');
+
+        $this->assertSame(ProductStatus::Answered, $result['product_status']);
+        $this->assertStringContainsString('włączysz sprzedaż', $result['body']);
+        Http::assertSentCount(2); // primary + escalation
+    }
+
+    public function test_off_topic_stays_abstained_when_escalation_also_abstains(): void
+    {
+        // Negative case (auditor F-04): genuinely-absent info → BOTH stages abstain,
+        // nothing is fabricated, no unit rendered, recovery chips shown.
+        $this->writeWideCorpus();
+        $this->configureEscalation();
+
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'out_of_scope', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5, 'cost' => 0.0001],
+            ]),
+            'openrouter2.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'out_of_scope', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 300, 'completion_tokens' => 5, 'cost' => 0.0002],
+            ]),
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage('Czy obsługujecie płatności Bitcoin?'), 'op-offtopic');
+
+        $this->assertSame(ProductStatus::Abstained, $result['product_status']);
+        $this->assertSame([], $result['sources']);
+        $this->assertNotEmpty($result['suggestions']); // recovery chips on abstention
+        Http::assertSentCount(2); // primary (matched payment unit) + escalation
+        $this->assertDatabaseMissing('message_units', ['validation_status' => 'accepted', 'display_ordinal' => 1]);
+    }
+
+    public function test_escalation_skipped_when_full_corpus_adds_no_context(): void
+    {
+        // Guard (auditor F-03): if the primary already saw the full corpus (retriever
+        // = full → candidates == full set), escalation is a paid retry on identical
+        // context and must be skipped — no second model call.
+        $this->writeCorpus(); // 2 units
+        config([
+            'askdocs.retrieval.driver' => 'full', // primary already sees everything
+            'askdocs.fallback' => 'openrouter2',
+            'askdocs.escalate_on_abstention' => true,
+            'askdocs.providers.openrouter2' => [
+                'driver' => 'openrouter',
+                'base_url' => 'https://openrouter2.ai/api/v1',
+                'key' => 'test-key',
+                'model' => 'openai/gpt-5.4-nano',
+                'providers' => ['openai'],
+            ],
+        ]);
+
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'out_of_scope', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5, 'cost' => 0.0001],
+            ]),
+            'openrouter2.ai/*' => Http::response([
                 'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['start.logowanie']])]]],
                 'usage' => ['prompt_tokens' => 200, 'completion_tokens' => 15, 'cost' => 0.0002],
             ]),
         ]);
 
-        $result = app(AskDocs::class)->handle($this->userMessage('są inne sekcje faq?'), 'op-clarify-escalate');
+        $result = app(AskDocs::class)->handle($this->userMessage('Stolica Australii?'), 'op-noescalate');
 
-        $this->assertSame(ProductStatus::Answered, $result['product_status']);
-        $this->assertStringContainsString('Wejdź na /admin', $result['body']);
-        Http::assertSentCount(2); // primary + escalation
+        $this->assertSame(ProductStatus::Abstained, $result['product_status']);
+        Http::assertSentCount(1); // escalation skipped — no second call
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'openrouter2.ai'));
     }
 
     public function test_idempotent_on_repeated_operation_id(): void

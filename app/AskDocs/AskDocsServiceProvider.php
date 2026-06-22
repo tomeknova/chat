@@ -8,8 +8,10 @@ use App\AskDocs\Adapters\OpenRouterChatModel;
 use App\AskDocs\Contracts\AnswerUnitSelector;
 use App\AskDocs\Contracts\ChatModel;
 use App\AskDocs\Contracts\EndpointResolver;
+use App\AskDocs\Contracts\EscalationSelector;
 use App\AskDocs\Security\EndpointAllowlist;
 use App\AskDocs\Selection\FailoverAnswerUnitSelector;
+use App\AskDocs\Selection\FailoverEscalationSelector;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -40,8 +42,9 @@ class AskDocsServiceProvider extends ServiceProvider
         });
 
         // Escalation selector: fallback provider only (e.g. OpenRouter), used when
-        // the primary (Bielik) abstains and escalate_on_abstention is enabled.
-        $this->app->bind('askdocs.escalation-selector', function ($app): ?AnswerUnitSelector {
+        // the primary (Bielik) abstains. Resolves to null when no fallback is
+        // configured, so AskDocs can constructor-inject it as an optional dependency.
+        $this->app->bind(EscalationSelector::class, function ($app): ?EscalationSelector {
             $fallback = config('askdocs.fallback');
             if (! $fallback) {
                 return null;
@@ -52,7 +55,7 @@ class AskDocsServiceProvider extends ServiceProvider
                 return null;
             }
 
-            return new FailoverAnswerUnitSelector(
+            return new FailoverEscalationSelector(
                 [$fallback => $this->adapter($cfg)],
                 $app->make(GroundingValidator::class),
                 $app->make(CircuitBreaker::class),

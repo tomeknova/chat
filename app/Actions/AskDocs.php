@@ -5,6 +5,8 @@ namespace App\Actions;
 use App\Actions\Corpus\CandidateRetriever;
 use App\Actions\Corpus\FullCorpusRetriever;
 use App\AskDocs\Contracts\AnswerUnitSelector;
+use App\AskDocs\Contracts\EscalationSelector;
+use App\AskDocs\LostLeaseException;
 use App\Enums\MessageRole;
 use App\Enums\ProcessingStatus;
 use App\Enums\ProductStatus;
@@ -31,6 +33,7 @@ class AskDocs
         private readonly CandidateRetriever $retriever,
         private readonly AnswerUnitSelector $selector,
         private readonly FullCorpusRetriever $fullCorpus,
+        private readonly ?EscalationSelector $escalationSelector = null,
     ) {}
 
     /**
@@ -151,6 +154,10 @@ class AskDocs
             }
 
             return $this->finalize($generation, $userMessage, $candidates, $selection);
+        } catch (LostLeaseException) {
+            // We lost the lease mid-flight; the new owner finalizes. Do NOT mark
+            // Failed (that row belongs to the other executor now) — degrade transiently.
+            return $this->busy($userMessage);
         } catch (Throwable $e) {
             $generation->update(['status' => ProcessingStatus::Failed]);
 
@@ -161,7 +168,8 @@ class AskDocs
     /**
      * Domain escalation: re-retrieve with the full corpus and try the fallback
      * provider. Returns the escalated result if it answered; otherwise returns
-     * the original abstention so the caller can show recovery chips.
+     * the original abstention so the caller can show recovery chips. Either way
+     * the merged attempt history (both stages) is preserved for audit/cost.
      *
      * @param  list<array<string, mixed>>  $candidates
      * @param  array<string, mixed>  $selection
@@ -169,26 +177,34 @@ class AskDocs
      */
     private function escalate(string $question, array $candidates, array $selection): array
     {
-        if (! config('askdocs.escalate_on_abstention')) {
+        if (! config('askdocs.escalate_on_abstention') || $this->escalationSelector === null) {
             return [$candidates, $selection];
         }
 
-        /** @var ?AnswerUnitSelector $escalationSelector */
-        $escalationSelector = app('askdocs.escalation-selector');
-        if ($escalationSelector === null) {
-            return [$candidates, $selection];
-        }
-
+        // Only escalate when the full corpus actually shows MORE than the primary
+        // already saw — otherwise it is a paid retry on identical context (e.g.
+        // the primary retriever is already 'full', or the corpus is tiny).
         $fullCandidates = $this->fullCorpus->retrieve($question);
-        if ($fullCandidates === []) {
+        if (count($fullCandidates) <= count($candidates)) {
             return [$candidates, $selection];
         }
 
-        $escalated = $escalationSelector->select($fullCandidates, $question);
+        $escalated = $this->escalationSelector->select($fullCandidates, $question);
+
+        // Preserve the full attempt history across BOTH stages (audit + cost) and
+        // record what the primary decided before we escalated.
+        $mergedAttempts = array_merge($selection['attempts'], $escalated['attempts']);
+        $primaryOutcome = $selection['outcome']->value;
 
         if ($escalated['outcome'] === ProductStatus::Answered) {
+            $escalated['attempts'] = $mergedAttempts;
+            $escalated['primary_outcome'] = $primaryOutcome;
+
             return [$fullCandidates, $escalated];
         }
+
+        $selection['attempts'] = $mergedAttempts;
+        $selection['primary_outcome'] = $primaryOutcome;
 
         return [$candidates, $selection];
     }
@@ -208,10 +224,12 @@ class AskDocs
         $accepted = $selection['accepted'];
         $body = $this->body($product, $accepted, ! $selection['technical']);
         $sources = $this->sources($accepted);
-        // Recovery (Faza 7): on a domain abstention, offer answerable questions
-        // from the nearest retrieved units' intents; fall back to default starters
-        // when nothing matched the corpus (empty candidates or no intents found).
-        $suggestions = ($product === ProductStatus::Abstained && ! $selection['technical'])
+        // Recovery (Faza 7): on a domain abstention OR an unresolved clarification
+        // (escalation didn't help), offer answerable questions from the nearest
+        // retrieved units' intents; fall back to default starters when nothing
+        // matched the corpus. Never on a technical failure.
+        $needsGuidance = in_array($product, [ProductStatus::Abstained, ProductStatus::NeedsClarification], true);
+        $suggestions = ($needsGuidance && ! $selection['technical'])
             ? ($this->suggestionsFrom($candidates) ?: array_values((array) config('chat.suggestions', [])))
             : [];
 
@@ -223,17 +241,33 @@ class AskDocs
                 'product_status' => $product,
             ]);
 
-            $generation->update([
-                'message_id' => $assistant->id,
-                'model' => $selection['model'],
-                'response_type' => $selection['response_type'],
-                'input_tokens' => $selection['input_tokens'],
-                'output_tokens' => $selection['output_tokens'],
-                'cost' => $selection['cost'],
-                'infra_status' => $selection['infra_status'],
-                'status' => ProcessingStatus::Completed,
-                'metadata' => ['attempts' => $selection['attempts']],
-            ]);
+            // Fencing (decision R): commit ONLY while we still own the reservation.
+            // If our lease expired and another executor reclaimed it (new
+            // processing_owner / bumped execution_attempt), this UPDATE matches 0
+            // rows → abort so the stale executor never writes a duplicate answer.
+            // Message::create above rolls back with the thrown exception.
+            $owned = Generation::query()
+                ->whereKey($generation->id)
+                ->where('processing_owner', $generation->processing_owner)
+                ->where('execution_attempt', $generation->execution_attempt)
+                ->update([
+                    'message_id' => $assistant->id,
+                    'model' => $selection['model'],
+                    'response_type' => $selection['response_type'],
+                    'input_tokens' => $selection['input_tokens'],
+                    'output_tokens' => $selection['output_tokens'],
+                    'cost' => $selection['cost'],
+                    'infra_status' => $selection['infra_status'],
+                    'status' => ProcessingStatus::Completed,
+                    'metadata' => [
+                        'attempts' => $selection['attempts'],
+                        'primary_outcome' => $selection['primary_outcome'] ?? $selection['outcome']->value,
+                    ],
+                ]);
+
+            if ($owned === 0) {
+                throw new LostLeaseException;
+            }
 
             // generation_context = exactly what the model saw (basis of validation).
             foreach ($candidates as $unit) {
