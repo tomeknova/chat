@@ -156,6 +156,27 @@ class AskDocsTest extends TestCase
         $this->assertDatabaseHas('generations', ['operation_id' => 'op-empty', 'status' => 'completed', 'model' => null]);
     }
 
+    public function test_abstention_falls_back_to_default_starters_when_no_intents_matched(): void
+    {
+        // Corpus with units that have no intents → suggestionsFrom() returns [] → fallback.
+        $corpusData = [
+            'units' => [
+                ['answer_unit_id' => 'start.logowanie', 'content' => "## Logowanie\n\nWejdź na /admin.", 'content_hash' => hash('sha256', 'log'), 'intents' => [], 'canonical_url' => '/start/logowanie'],
+            ],
+        ];
+        file_put_contents($this->corpusPath, json_encode($corpusData));
+
+        $starters = ['Domyślne pytanie A', 'Domyślne pytanie B'];
+        config(['chat.suggestions' => $starters]);
+
+        $this->fakeModel('out_of_scope', []);
+
+        $result = app(AskDocs::class)->handle($this->userMessage('Stolica Australii?'), 'op-fallback');
+
+        $this->assertSame(ProductStatus::Abstained, $result['product_status']);
+        $this->assertSame($starters, $result['suggestions']);
+    }
+
     public function test_idempotent_on_repeated_operation_id(): void
     {
         $existing = Generation::factory()->create(['operation_id' => 'op-dup']);

@@ -166,9 +166,10 @@ class AskDocs
         $body = $this->body($product, $accepted, ! $selection['technical']);
         $sources = $this->sources($accepted);
         // Recovery (Faza 7): on a domain abstention, offer answerable questions
-        // from the nearest retrieved units' intents — not on a technical failure.
+        // from the nearest retrieved units' intents; fall back to default starters
+        // when nothing matched the corpus (empty candidates or no intents found).
         $suggestions = ($product === ProductStatus::Abstained && ! $selection['technical'])
-            ? $this->suggestionsFrom($candidates)
+            ? ($this->suggestionsFrom($candidates) ?: array_values((array) config('chat.suggestions', [])))
             : [];
 
         $assistant = DB::transaction(function () use ($generation, $userMessage, $candidates, $selection, $product, $body) {
