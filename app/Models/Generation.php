@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\InfraStatus;
+use App\Enums\ProcessingStatus;
 use App\Enums\ResponseType;
 use Database\Factories\GenerationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,6 +30,13 @@ class Generation extends Model
         'output_tokens',
         'cost',
         'infra_status',
+        'status',
+        'processing_owner',
+        'processing_started_at',
+        'lease_expires_at',
+        'request_fingerprint',
+        'execution_attempt',
+        'metadata',
     ];
 
     /**
@@ -39,9 +47,14 @@ class Generation extends Model
         return [
             'response_type' => ResponseType::class,
             'infra_status' => InfraStatus::class,
+            'status' => ProcessingStatus::class,
             'input_tokens' => 'integer',
             'output_tokens' => 'integer',
             'cost' => 'decimal:8',
+            'execution_attempt' => 'integer',
+            'processing_started_at' => 'datetime',
+            'lease_expires_at' => 'datetime',
+            'metadata' => 'array',
         ];
     }
 

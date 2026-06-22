@@ -7,6 +7,7 @@ use App\AskDocs\Adapters\OllamaChatModel;
 use App\AskDocs\CircuitBreaker;
 use App\AskDocs\Contracts\EndpointResolver;
 use App\Enums\MessageRole;
+use App\Enums\ProcessingStatus;
 use App\Enums\ProductStatus;
 use App\Models\Conversation;
 use App\Models\Generation;
@@ -14,6 +15,7 @@ use App\Models\Message;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class AskDocsTest extends TestCase
@@ -144,7 +146,9 @@ class AskDocsTest extends TestCase
 
         $this->assertSame(ProductStatus::Abstained, $result['product_status']);
         Http::assertNothingSent();
-        $this->assertDatabaseCount('generations', 0);
+        // One reservation row, finalized as a completed abstain — no model, no AI call.
+        $this->assertDatabaseCount('generations', 1);
+        $this->assertDatabaseHas('generations', ['operation_id' => 'op-empty', 'status' => 'completed', 'model' => null]);
     }
 
     public function test_idempotent_on_repeated_operation_id(): void
@@ -189,7 +193,11 @@ class AskDocsTest extends TestCase
         $this->assertSame(ProductStatus::Answered, $result['product_status']);
         $this->assertSame('/start/logowanie', $result['sources'][0]['canonical_url']);
         // Final generation = the provider that succeeded (OpenRouter), not Bielik.
-        $this->assertDatabaseHas('generations', ['operation_id' => 'op-failover', 'model' => 'openai/gpt-5.4-nano']);
+        $generation = Generation::firstWhere('operation_id', 'op-failover');
+        $this->assertSame('openai/gpt-5.4-nano', $generation->model);
+        $this->assertSame(ProcessingStatus::Completed, $generation->status);
+        // Both attempts are recorded in telemetry (Bielik grounding-fail + OpenRouter).
+        $this->assertCount(2, $generation->metadata['attempts']);
     }
 
     public function test_skips_provider_with_open_circuit_without_calling_it(): void
@@ -260,6 +268,70 @@ class AskDocsTest extends TestCase
         $result = $model->select([], 'pytanie');
 
         $this->assertFalse($result['ok']); // down → failover, no traffic to an unverified endpoint
+        Http::assertNothingSent();
+    }
+
+    public function test_returns_busy_while_another_executor_holds_a_valid_lease(): void
+    {
+        Generation::factory()->create([
+            'operation_id' => 'op-busy',
+            'message_id' => null,
+            'status' => ProcessingStatus::Processing,
+            'processing_owner' => (string) Str::uuid(),
+            'lease_expires_at' => now()->addSeconds(60), // valid lease
+            'request_fingerprint' => null,
+        ]);
+        Http::fake();
+
+        $result = app(AskDocs::class)->handle($this->userMessage(), 'op-busy');
+
+        $this->assertSame(ProductStatus::Abstained, $result['product_status']);
+        $this->assertStringContainsString('przetwarzane', $result['body']);
+        Http::assertNothingSent();           // no second AI call
+        $this->assertDatabaseCount('generations', 1); // no duplicate reservation
+    }
+
+    public function test_takes_over_an_expired_lease_and_answers(): void
+    {
+        $this->writeCorpus();
+        $this->fakeModel('answer', ['start.logowanie']);
+
+        $generation = Generation::factory()->create([
+            'operation_id' => 'op-takeover',
+            'message_id' => null,
+            'status' => ProcessingStatus::Processing,
+            'processing_owner' => (string) Str::uuid(),
+            'lease_expires_at' => now()->subSeconds(10), // expired → crashed executor
+            'request_fingerprint' => null,
+            'model' => null,
+            'response_type' => null,
+            'infra_status' => null,
+            'execution_attempt' => 1,
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage(), 'op-takeover');
+
+        $this->assertSame(ProductStatus::Answered, $result['product_status']);
+        $this->assertDatabaseCount('generations', 1); // same row reclaimed, not duplicated
+
+        $generation->refresh();
+        $this->assertSame(ProcessingStatus::Completed, $generation->status);
+        $this->assertSame(2, $generation->execution_attempt);
+    }
+
+    public function test_conflict_when_same_operation_id_carries_a_different_question(): void
+    {
+        Generation::factory()->create([
+            'operation_id' => 'op-conflict',
+            'status' => ProcessingStatus::Processing,
+            'lease_expires_at' => now()->addSeconds(60),
+            'request_fingerprint' => 'a-different-fingerprint',
+        ]);
+        Http::fake();
+
+        $result = app(AskDocs::class)->handle($this->userMessage(), 'op-conflict');
+
+        $this->assertStringContainsString('konflikt', mb_strtolower($result['body']));
         Http::assertNothingSent();
     }
 }

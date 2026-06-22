@@ -90,4 +90,8 @@ return [
     // Total request budget across the failover chain (deadline-aware). 0 = disabled.
     'deadline' => (int) env('ASKDOCS_DEADLINE', 35),
 
+    // Reservation lease (decision R): how long one executor may hold an operation
+    // before a crashed executor is reclaimed via CAS. Must exceed `deadline`.
+    'lease' => (int) env('ASKDOCS_LEASE', 60),
+
 ];
