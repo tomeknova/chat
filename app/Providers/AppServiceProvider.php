@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Corpus\CandidateRetriever;
 use App\Actions\Corpus\FullCorpusRetriever;
+use App\Actions\Corpus\LexicalRetriever;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -13,9 +14,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // v1 retrieval = full corpus; swap here for lexical/vector later.
         // Singleton so the corpus file is decoded once per request.
-        $this->app->singleton(CandidateRetriever::class, FullCorpusRetriever::class);
+        $this->app->singleton(FullCorpusRetriever::class);
+
+        // Retrieval stage selectable by config: `full` (big-context providers)
+        // or `lexical` top-k (required for the small local Bielik).
+        $this->app->singleton(CandidateRetriever::class, function ($app): CandidateRetriever {
+            return match (config('askdocs.retrieval.driver', 'full')) {
+                'lexical' => new LexicalRetriever($app->make(FullCorpusRetriever::class)),
+                default => $app->make(FullCorpusRetriever::class),
+            };
+        });
     }
 
     /**
