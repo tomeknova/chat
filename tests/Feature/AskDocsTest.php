@@ -215,6 +215,42 @@ class AskDocsTest extends TestCase
         Http::assertSentCount(2); // primary + escalation
     }
 
+    public function test_domain_escalation_triggers_on_needs_clarification(): void
+    {
+        $this->writeCorpus();
+
+        config([
+            'askdocs.fallback' => 'openrouter2',
+            'askdocs.escalate_on_abstention' => true,
+            'askdocs.providers.openrouter2' => [
+                'driver' => 'openrouter',
+                'base_url' => 'https://openrouter2.ai/api/v1',
+                'key' => 'test-key',
+                'model' => 'openai/gpt-5.4-nano',
+                'providers' => ['openai'],
+            ],
+        ]);
+
+        Http::fake([
+            // Primary can't clarify.
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'clarification', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5, 'cost' => 0.0001],
+            ]),
+            // Escalation answers with a valid unit.
+            'openrouter2.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'answer', 'answer_unit_ids' => ['start.logowanie']])]]],
+                'usage' => ['prompt_tokens' => 200, 'completion_tokens' => 15, 'cost' => 0.0002],
+            ]),
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage('są inne sekcje faq?'), 'op-clarify-escalate');
+
+        $this->assertSame(ProductStatus::Answered, $result['product_status']);
+        $this->assertStringContainsString('Wejdź na /admin', $result['body']);
+        Http::assertSentCount(2); // primary + escalation
+    }
+
     public function test_idempotent_on_repeated_operation_id(): void
     {
         $existing = Generation::factory()->create(['operation_id' => 'op-dup']);

@@ -144,10 +144,9 @@ class AskDocs
                 ? $this->emptyCorpusSelection()
                 : $this->selector->select($candidates, $userMessage->content);
 
-            // Domain escalation: primary abstained (non-technical) → retry with
-            // full corpus + fallback provider (e.g. OpenRouter). Next question
-            // starts fresh with the primary — no persistent state change.
-            if ($selection['outcome'] === ProductStatus::Abstained && ! $selection['technical']) {
+            // Domain escalation: primary abstained or couldn't clarify (non-technical)
+            // → retry with full corpus + fallback provider (e.g. OpenRouter).
+            if (in_array($selection['outcome'], [ProductStatus::Abstained, ProductStatus::NeedsClarification], true) && ! $selection['technical']) {
                 [$candidates, $selection] = $this->escalate($userMessage->content, $candidates, $selection);
             }
 
