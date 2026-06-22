@@ -20,7 +20,9 @@ są **częściowo sprzed pivota** — patrz sekcja 2.
 **Zasada rozstrzygania:** gdy dokument przeczy kodowi → dokument jest błędny → **popraw dokument, nie kod**
 (chyba że to kod łamie SCOPE_V1 / KICKOFF_V1 — wtedy popraw kod).
 
-## 2. Co poprawić w `CLAUDE.md` (rozbieżności z kodem — stan po integracji Bielika)
+## 2. Zsynchronizowano z `CLAUDE.md` (WYKONANE)
+
+> Naniesione po integracji Bielika — `CLAUDE.md` odzwierciedla teraz kod. Lista poniżej to **rejestr** tego, co uzgodniono.
 
 - **STACK, punkt „AI":** `config/ai.php` → **`config/askdocs.php`** (`config/ai.php` USUNIĘTY — kolizja z pakietem `laravel/ai`).
   AI to **hybryda: Bielik (lokalny Ollama) primary + OpenRouter fallback**, nie sam OpenRouter. Dla Bielika retriever **lexical** (pełny korpus go przepełnia).

@@ -7,8 +7,8 @@
 > **WIĄŻĄCE (czytaj NAJPIERW):** zakres v1, kontrakt AI, model danych i architektura =
 > `docs/SCOPE_V1.md` + `docs/KICKOFF_V1.md` (najnowsze). Rdzeń = **grounded WYBÓR answer-unit**
 > (`{response_type, answer_unit_ids[]}`, walidacja `∈ generation_context` + `content_hash`).
-> Sekcje STACK / MODEL DANYCH / ARCHITEKTURA / ROZMIESZCZENIE poniżej są **częściowo sprzed pivota**
-> (np. `{answer, link, covered}`, `approved_answers`) — **w razie sprzeczności obowiązuje `docs/`.**
+> Sekcje STACK / MODEL DANYCH / ARCHITEKTURA / ROZMIESZCZENIE zaktualizowano po integracji Bielika (stan = kod).
+> **W razie sprzeczności obowiązują kod + `docs/`** (precedencja źródeł: `docs/AGENT_GUIDE.md`).
 
 ## RESPONSE LANGUAGE
 Odpowiadaj po **polsku**. Komentarze w kodzie po **angielsku**. Kodowanie UTF-8.
@@ -23,10 +23,11 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
 - Laravel 12 / PHP 8.2+ (local LAMPP: **8.2** · serwer prod: **8.5**)
 - Livewire (preferencja: 4, jak w KINGS5) — publiczny, jednostronicowy czat
 - Filament 5 — panel review (pytania + zatwierdzone odpowiedzi)
-- **MySQL/MariaDB** — połączenie Laravel **`mysql`** (przenośne: local=MariaDB, prod=**MySQL 8.4 LTS**); baza `chat`. ~11 tabel aplikacyjnych (schemat w `docs/DATABASE_SCHEMA.md`)
+- **MySQL/MariaDB** — połączenie Laravel **`mysql`** (przenośne: local=MariaDB, prod=**MySQL 8.4 LTS**); baza `chat`. **5 tabel aplikacyjnych v1** (schemat = migracje `database/migrations/`; konfiguracja DB: `docs/DB_SETUP.md`)
 - Tailwind; layout z BootstrapMade „Landia" (rama) + dymki czatu z szablonu admina
-- AI: **OpenRouter** (OpenAI-compatible, `config/ai.php`), model **`openai/gpt-5.4-nano`**
-  (fallback `mistralai/ministral-14b-2512`), strict JSON structured output + `provider.only`
+- AI: **hybryda** — Bielik (lokalny Ollama) primary + **OpenRouter** fallback (OpenAI-compatible, `config/askdocs.php`),
+  model OpenRoutera **`openai/gpt-5.4-nano`**; strict JSON structured output + `provider.only` (tylko OpenRouter).
+  Dla Bielika retriever **lexical**. Routing: `ASKDOCS_PROVIDER` / `ASKDOCS_FALLBACK` / `ASKDOCS_RETRIEVER`
 - Język: kod EN, UI PL
 
 ## ŚRODOWISKO
@@ -42,9 +43,10 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
    Świeży 500 zaraz po wgraniu = zwykle brak praw zapisu do tych katalogów.
 3. **Klucz API** — NIGDY w kodzie/gicie; tylko `.env` (`OPENROUTER_API_KEY`). Front nie
    widzi klucza — wszystkie wywołania przez serwerową Action.
-4. **Prompt caching** — korpus docs w `system` z `cache_control`; po breakpoincie
-   zmienia się tylko pytanie. Sprawdzaj `cache_read_input_tokens > 0`.
-5. **Model id** — `openai/gpt-5.4-nano` (slug OpenRouter, z `config/ai.php`). Structured output
+4. **Kontekst i koszt** — korpus podawany w `system`; cachowanie zależy od dostawcy
+   (OpenRouter/Ollama), NIE Anthropic `cache_control`. Mały model (Bielik) → retriever
+   **lexical** (`ASKDOCS_RETRIEVER=lexical`); pełny korpus przepełnia jego kontekst.
+5. **Model id** — `openai/gpt-5.4-nano` (slug OpenRouter, z `config/askdocs.php`). Structured output
    OpenAI-compatible: `response_format.json_schema` = `{name, strict:true, schema}` (płaska,
    `additionalProperties:false`) + `provider.only` (dostawcy z structured outputs).
 
@@ -58,17 +60,21 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
 
 ## ROZMIESZCZENIE PLIKÓW
 - `app/Livewire/` — komponent czatu (single-page) + ewentualnie historia.
-- `app/Actions/` — `AskDocs` (woła Claude), itp.
-- `app/Console/Commands/` — `chat:build-corpus` (buduje korpus z markdownów kings5-docs).
-- `app/Filament/Resources/` — `Questions`, `AnswerDrafts`, `Generations` (review/curation/telemetria).
-- `config/docs.php` — bazowy URL docs, ścieżka źródła docs, model.
+- `app/Actions/` — `AskDocs` (orkiestruje rezerwację + wybór jednostki), `Corpus/` (retrievery: `FullCorpus`, `Lexical`), `RedactPii`, `AiGate`.
+- `app/AskDocs/` — moduł providerów: kontrakty (`ChatModel`, `AnswerUnitSelector`, `EndpointResolver`),
+  adaptery (`OllamaChatModel`, `OpenRouterChatModel`), `Selection/FailoverAnswerUnitSelector`, `GroundingValidator`,
+  `CircuitBreaker`, `Adapters/Discovery/DnsEndpointResolver`, `Security/EndpointAllowlist`.
+- `app/Console/Commands/` — `chat:build-corpus`, `chat:assistant-smoke`, `chat:eval`.
+- `app/Filament/Resources/` — `Messages`, `Generations` (review/telemetria, read-only).
+- `config/askdocs.php` (providery/routing/retriever/breaker/lease/deadline) · `config/corpus.php` (base_url, ścieżki) · `config/chat.php` (pepper, kill-switch, budżet).
 
-## MODEL DANYCH (szkic — pełny schemat w `docs/DATABASE_SCHEMA.md`)
+## MODEL DANYCH (5 tabel v1 — pełny schemat = migracje `database/migrations/`)
 - `conversations` — `public_id` (ULID), `owner_token_hash`, `title`, `created_at`
-- `messages` — `conversation_id`, `role` (user/assistant), `content`, `rating` (up/down/null), `selected_generation_id` FK, `created_at`
-- `generations` / `generation_context` / `generation_retrieval_candidates` / `message_units` / `message_sources` — ślad generacji i telemetria
-- `answer_drafts` — brudnopis kuracji (`corpus_version_seen`, `draft_status`, `expired`); runtime nigdy nie czyta
-- `corpus_versions` / `answer_unit_versions` — immutable rejestr korpusu (append-only)
+- `messages` — `conversation_id`, `role` (user/assistant), `content`, `normalized_question_hash`, `product_status`, `rating` (up/down/null), `created_at`
+- `generations` — ślad + rezerwacja (decyzja R): `operation_id` UNIQUE, `model`, `response_type`, tokeny, `cost`, `infra_status`,
+  `status`, `processing_owner`, `lease_expires_at`, `request_fingerprint`, `execution_attempt`, `metadata` (JSON, `attempts[]`)
+- `generation_context` — co model widział (`answer_unit_id`, `content_hash`) = podstawa walidacji
+- `message_units` — werdykt groundingu per jednostka (`validation_status`, `display_ordinal`)
 
 ## ARCHITEKTURA ASYSTENTA
 - **AskDocs (Action):** `system` = instrukcja + jednostki korpusu (UNTRUSTED); model **wybiera**
@@ -77,11 +83,10 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
 - **Korpus:** `chat:build-corpus` czyta markdowny z repo **kings5-docs** → plik w `storage`;
   odpalany przy deployu (i/lub cron) → asystent zawsze zna aktualne docs.
 - **Pętla feedbacku:** 👎 → review w Filament → admin edytuje docs VitePress →
-  `chat:build-corpus` → asystent zna poprawną treść. `answer_drafts` = wyłącznie
-  brudnopis (runtime nigdy nie czyta; auto-wygasa po reindeksie).
+  `chat:build-corpus` → asystent zna poprawną treść. Kuracja = edycja docs + reindeks (bez tabeli `approved_answers`/`answer_drafts`).
 
 ## DEPLOY (git → GitHub prywatne → serwer pull)
-- Repo: **`kings5-docs-chat`** (prywatne). Serwer pobiera przez **deploy key** (read-only).
+- Repo: **`chat`** (prywatne, `github.com:tomeknova/chat`). Serwer pobiera przez **deploy key** (read-only). Przewodnik wdrożenia: `docs/DEPLOY.md`.
 - `deploy.sh`: `git reset --hard origin/main` → `composer install --no-dev --optimize-autoloader`
   → `php artisan config:cache route:cache view:cache` → `migrate --force` → `chat:build-corpus`.
 - `.env` tworzony **raz na serwerze** (klucz API, NIE w gicie). vhost docroot = `public/`.
@@ -101,7 +106,7 @@ właściwą odpowiedź → wraca do asystenta). Bez fine-tuningu — poprawa w k
 - [ ] Klucz/sekrety tylko w `.env`?
 - [ ] Endpoint czatu z throttle?
 - [ ] Structured output `{response_type, answer_unit_ids[]}` + walidacja `∈ generation_context` + `content_hash`?
-- [ ] Prompt caching na korpusie (cache_read > 0)?
+- [ ] Retriever dobrany do providera (Bielik → `lexical`)?
 - [ ] UTF-8 czysty w nowych plikach PL?
 - [ ] Filament resource dla nowych danych?
 
