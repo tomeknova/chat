@@ -3,13 +3,34 @@
 # Hero Section
 --------------------------------------------------------------*/
 .hero {
-  padding: 100px 0 60px;
+  padding: 36px 0 28px; // hero był za wysoki — minimalne, niezerowe odstępy
   position: relative;
 
   .hero-wrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 0.6rem; // ciasne, ale nie zerowe odstępy między elementami
+
+    h1 {
+      font-size: 2rem; // delikatnie większy + pogrubiony
+      font-weight: 700;
+      line-height: 1.2;
+      margin: 0;
+      color: var(--heading-color);
+    }
+
+    .lead {
+      font-size: 0.9rem; // wielkości badge „Dokumentacja KINGS"
+      line-height: 1.5;
+      margin: 0;
+      max-width: 640px;
+      color: color-mix(in srgb, var(--default-color), transparent 20%);
+    }
+
+    .hero-buttons {
+      margin-top: 0.4rem;
+    }
   }
 
   .hero-text-center {
@@ -215,10 +236,10 @@
   }
 
   @media (max-width: 992px) {
-    padding: 80px 0 40px;
+    padding: 24px 0 20px;
 
-    .hero-text-center {
-      margin-bottom: 3rem;
+    .hero-wrapper h1 {
+      font-size: 1.6rem;
     }
   }
 }
