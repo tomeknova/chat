@@ -325,6 +325,58 @@ class AskDocsTest extends TestCase
         Http::assertSentCount(2); // primary + escalation
     }
 
+    public function test_escalation_clarification_supersedes_primary_abstention(): void
+    {
+        // The stronger model on the full corpus asks to clarify — that verdict is
+        // more actionable than the primary's flat abstention, so it reaches the user.
+        $this->writeWideCorpus();
+        $this->configureEscalation();
+
+        Http::fake([
+            // Primary abstains.
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'out_of_scope', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5, 'cost' => 0.0001],
+            ]),
+            // Escalation can't answer but asks for clarification (non-technical).
+            'openrouter2.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'clarification', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 300, 'completion_tokens' => 5, 'cost' => 0.0002],
+            ]),
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage('Jak skonfigurować sprzedaż biletów?'), 'op-clarify-adopt');
+
+        $this->assertSame(ProductStatus::NeedsClarification, $result['product_status']);
+        $this->assertStringContainsString('Doprecyzuj', $result['body']);
+        $this->assertNotEmpty($result['suggestions']); // clarification still gets recovery chips
+        Http::assertSentCount(2);
+    }
+
+    public function test_technical_escalation_failure_keeps_primary_abstention(): void
+    {
+        // Escalation fails TECHNICALLY (HTTP 500) → keep the primary's clean
+        // abstention rather than degrading to a transient-error message.
+        $this->writeWideCorpus();
+        $this->configureEscalation();
+
+        Http::fake([
+            'openrouter.ai/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['response_type' => 'out_of_scope', 'answer_unit_ids' => []])]]],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5, 'cost' => 0.0001],
+            ]),
+            'openrouter2.ai/*' => Http::response(['error' => 'upstream down'], 500),
+        ]);
+
+        $result = app(AskDocs::class)->handle($this->userMessage('Jak skonfigurować sprzedaż biletów?'), 'op-escalate-fail');
+
+        $this->assertSame(ProductStatus::Abstained, $result['product_status']);
+        $this->assertStringContainsString('Nie znalazłem', $result['body']); // clean abstention, not a tech error
+        $this->assertNotEmpty($result['suggestions']);
+        // Escalation WAS attempted (then failed technically) — exact count varies with retry policy.
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'openrouter2.ai'));
+    }
+
     public function test_off_topic_stays_abstained_when_escalation_also_abstains(): void
     {
         // Negative case (auditor F-04): genuinely-absent info → BOTH stages abstain,

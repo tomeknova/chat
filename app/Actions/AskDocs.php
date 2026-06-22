@@ -196,7 +196,12 @@ class AskDocs
         $mergedAttempts = array_merge($selection['attempts'], $escalated['attempts']);
         $primaryOutcome = $selection['outcome']->value;
 
-        if ($escalated['outcome'] === ProductStatus::Answered) {
+        // The escalation ran on the stronger provider + full corpus, so its verdict
+        // supersedes the primary's — adopt it (answer, clarification, or a full-corpus
+        // abstention with better recovery chips). Only fall back to the primary when
+        // the escalation failed TECHNICALLY, so a clean abstention is not degraded
+        // into a transient-error message.
+        if (! $escalated['technical']) {
             $escalated['attempts'] = $mergedAttempts;
             $escalated['primary_outcome'] = $primaryOutcome;
 
