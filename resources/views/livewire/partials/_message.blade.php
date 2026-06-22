@@ -40,7 +40,7 @@
                 <div class="suggestion-chips mt-2 d-flex flex-wrap gap-2">
                     @foreach ($suggestions as $suggestion)
                         <button type="button" class="suggestion-chip"
-                            wire:click='ask(@js($suggestion))' wire:loading.attr="disabled">
+                            wire:click="ask(@js($suggestion))" wire:loading.attr="disabled">
                             {{ $suggestion }}
                         </button>
                     @endforeach
