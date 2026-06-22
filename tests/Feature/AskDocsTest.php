@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\AskDocs;
 use App\AskDocs\Adapters\OllamaChatModel;
 use App\AskDocs\CircuitBreaker;
+use App\AskDocs\Contracts\EndpointResolver;
 use App\Enums\MessageRole;
 use App\Enums\ProductStatus;
 use App\Models\Conversation;
@@ -239,6 +240,26 @@ class AskDocsTest extends TestCase
         $result = $model->select([], 'pytanie testowe', 0);
 
         $this->assertFalse($result['ok']);
+        Http::assertNothingSent();
+    }
+
+    public function test_ollama_adapter_is_down_when_endpoint_cannot_be_resolved(): void
+    {
+        Http::fake();
+
+        $resolver = new class implements EndpointResolver
+        {
+            public function resolve(): ?string
+            {
+                return null; // unresolvable / outside allowlist
+            }
+        };
+
+        $model = new OllamaChatModel(['driver' => 'ollama', 'model' => 'bielik-11b-v3-q80:latest'], $resolver);
+
+        $result = $model->select([], 'pytanie');
+
+        $this->assertFalse($result['ok']); // down → failover, no traffic to an unverified endpoint
         Http::assertNothingSent();
     }
 }

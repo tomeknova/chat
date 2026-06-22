@@ -37,6 +37,13 @@ return [
             'key' => env('BIELIK_KEY'), // local Ollama has no auth
             'model' => env('BIELIK_MODEL', 'bielik-11b-v3-q80:latest'),
             'timeout' => (int) env('BIELIK_TIMEOUT', 12), // small local model: fail fast to fallback
+            // Prod: resolve by NAME (never a hardcoded IP). When `host` is set the
+            // endpoint is resolved via DNS, pinned to the IP, and must pass the CIDR
+            // allowlist (anti-SSRF) before any traffic. Unset (local) → static base_url.
+            'host' => env('BIELIK_HOST'),
+            'port' => (int) env('BIELIK_PORT', 11434),
+            'allowed_cidr' => env('BIELIK_ALLOWED_CIDR'), // e.g. 192.168.10.0/24 (comma-separated)
+            'resolve_ttl' => (int) env('BIELIK_RESOLVE_TTL', 30),
         ],
 
     ],

@@ -2,10 +2,13 @@
 
 namespace App\AskDocs;
 
+use App\AskDocs\Adapters\Discovery\DnsEndpointResolver;
 use App\AskDocs\Adapters\OllamaChatModel;
 use App\AskDocs\Adapters\OpenRouterChatModel;
 use App\AskDocs\Contracts\AnswerUnitSelector;
 use App\AskDocs\Contracts\ChatModel;
+use App\AskDocs\Contracts\EndpointResolver;
+use App\AskDocs\Security\EndpointAllowlist;
 use App\AskDocs\Selection\FailoverAnswerUnitSelector;
 use Illuminate\Support\ServiceProvider;
 
@@ -56,8 +59,23 @@ class AskDocsServiceProvider extends ServiceProvider
     private function adapter(array $cfg): ChatModel
     {
         return match ($cfg['driver'] ?? 'openrouter') {
-            'ollama' => new OllamaChatModel($cfg),
+            'ollama' => new OllamaChatModel($cfg, $this->resolverFor($cfg)),
             default => new OpenRouterChatModel($cfg),
         };
+    }
+
+    /**
+     * Resolve by name (DNS + allowlist) only when a host is configured (prod);
+     * otherwise the adapter uses the static config base_url (local dev).
+     *
+     * @param  array<string, mixed>  $cfg
+     */
+    private function resolverFor(array $cfg): ?EndpointResolver
+    {
+        if (empty($cfg['host'])) {
+            return null;
+        }
+
+        return new DnsEndpointResolver($cfg, new EndpointAllowlist($cfg));
     }
 }

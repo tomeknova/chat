@@ -60,6 +60,12 @@ abstract class OpenAiCompatibleChatModel implements ChatModel
             return $base;
         }
 
+        // Resolve the endpoint (prod: by name + allowlist); null = down → fallback.
+        $baseUrl = $this->resolveBaseUrl();
+        if ($baseUrl === null) {
+            return [...$base, 'infra_status' => InfraStatus::ProviderRefusal];
+        }
+
         try {
             $request = Http::acceptJson()
                 ->timeout($timeout)
@@ -69,7 +75,7 @@ abstract class OpenAiCompatibleChatModel implements ChatModel
                 $request = $request->withToken((string) $this->config['key']);
             }
 
-            $response = $request->post(rtrim((string) ($this->config['base_url'] ?? ''), '/').'/chat/completions', array_merge([
+            $response = $request->post(rtrim($baseUrl, '/').'/chat/completions', array_merge([
                 'model' => $model,
                 'messages' => [
                     ['role' => 'system', 'content' => $this->systemPrompt($candidates)],
@@ -127,6 +133,17 @@ abstract class OpenAiCompatibleChatModel implements ChatModel
             'output_tokens' => is_array($usage) ? ($usage['completion_tokens'] ?? null) : null,
             'cost' => is_array($usage) ? ($usage['cost'] ?? null) : null,
         ];
+    }
+
+    /**
+     * Base URL for the call. Overridable so an adapter can resolve it by name
+     * (DNS + allowlist) instead of using a static config value. null = down.
+     */
+    protected function resolveBaseUrl(): ?string
+    {
+        $url = (string) ($this->config['base_url'] ?? '');
+
+        return $url !== '' ? $url : null;
     }
 
     /**
