@@ -17,16 +17,18 @@ use Symfony\Component\Yaml\Yaml;
 class BuildCorpus
 {
     /**
-     * Build the corpus file and return run stats.
+     * Scan one profile's source repo and return its approved answer-units.
      *
-     * @return array{pages_scanned: int, pages_approved: int, units: int, output: string}
+     * Pure build — no file writing. The command (BuildCorpusCommand) owns
+     * validation, atomic publication (tmp+rename) and the manifest, so atomicity
+     * lives in ONE place (audit #3). Caller passes the profile's source/exclude
+     * explicitly rather than reading global config (testability, no hidden state).
+     *
+     * @param  list<string>  $exclude
+     * @return array{pages_scanned: int, pages_approved: int, units: list<array{answer_unit_id: string, content: string, content_hash: string, intents: list<string>, canonical_url: string}>}
      */
-    public function handle(): array
+    public function handle(string $source, string $approvalKey, array $exclude): array
     {
-        $source = (string) config('corpus.source_path');
-        $approvalKey = (string) config('corpus.approval_key');
-        $exclude = (array) config('corpus.exclude');
-
         $finder = (new Finder)
             ->files()
             ->in($source)
@@ -66,8 +68,7 @@ class BuildCorpus
         return [
             'pages_scanned' => $pagesScanned,
             'pages_approved' => $pagesApproved,
-            'units' => count($units),
-            'output' => $this->write($source, $units),
+            'units' => $units,
         ];
     }
 
@@ -236,28 +237,5 @@ class BuildCorpus
         $seen[$id]++;
 
         return $id.'-'.$seen[$id];
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $units
-     */
-    private function write(string $source, array $units): string
-    {
-        $output = (string) config('corpus.output_path');
-
-        if (! is_dir(dirname($output))) {
-            mkdir(dirname($output), 0775, true);
-        }
-
-        $payload = [
-            'built_at' => now()->toIso8601String(),
-            'source' => $source,
-            'count' => count($units),
-            'units' => $units,
-        ];
-
-        file_put_contents($output, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-
-        return $output;
     }
 }

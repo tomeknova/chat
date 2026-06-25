@@ -48,19 +48,6 @@ class BuildCorpusTest extends TestCase
         file_put_contents($path, $contents);
     }
 
-    private function configureCorpus(): string
-    {
-        $output = $this->tmp.'/out/corpus.json';
-        config([
-            'corpus.source_path' => $this->tmp,
-            'corpus.output_path' => $output,
-            'corpus.approval_key' => 'assistant',
-            'corpus.exclude' => ['README.md', 'DEPLOY-SERVER.md'],
-        ]);
-
-        return $output;
-    }
-
     // ---- Pure cutting logic (no filesystem) -------------------------------
 
     public function test_single_section_page_becomes_one_unit(): void
@@ -109,27 +96,22 @@ class BuildCorpusTest extends TestCase
         $this->writeDoc('start/logowanie.md', "---\nassistant: true\n---\n# Logowanie\n\nZaloguj się na /admin.");
         $this->writeDoc('start/szkic.md', "# Szkic\n\nNiezatwierdzona strona (bez frontmatter).");
         $this->writeDoc('README.md', "---\nassistant: true\n---\n# Readme\n\nNie treść docs.");
-        $output = $this->configureCorpus();
 
-        $stats = app(BuildCorpus::class)->handle();
+        $stats = app(BuildCorpus::class)->handle($this->tmp, 'assistant', ['README.md', 'DEPLOY-SERVER.md']);
 
         $this->assertSame(2, $stats['pages_scanned']); // README excluded from scan
         $this->assertSame(1, $stats['pages_approved']);
-        $this->assertSame(1, $stats['units']);
-        $this->assertFileExists($output);
-
-        $payload = json_decode((string) file_get_contents($output), true);
-        $this->assertSame('start.logowanie', $payload['units'][0]['answer_unit_id']);
+        $this->assertCount(1, $stats['units']);
+        $this->assertSame('start.logowanie', $stats['units'][0]['answer_unit_id']);
     }
 
     public function test_reports_empty_when_nothing_is_approved(): void
     {
         $this->writeDoc('start/logowanie.md', "# Logowanie\n\nBez frontmatter = niezatwierdzone.");
-        $this->configureCorpus();
 
-        $stats = app(BuildCorpus::class)->handle();
+        $stats = app(BuildCorpus::class)->handle($this->tmp, 'assistant', ['README.md', 'DEPLOY-SERVER.md']);
 
         $this->assertSame(0, $stats['pages_approved']);
-        $this->assertSame(0, $stats['units']);
+        $this->assertCount(0, $stats['units']);
     }
 }
