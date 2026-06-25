@@ -8,6 +8,11 @@
  * text) and the validated units + source links are rendered. Messages are
  * persisted against an anonymous owner-token HASH (RODO); ratings feed curation.
  *
+ * Multi-instruction (Faza 2): every conversation belongs to ONE corpus profile
+ * (kings5-docs / clams-docs). The active profile is applied per-request from the
+ * AUTHORITATIVE Conversation.profile (not the public property) and the switch
+ * starts a fresh conversation (window cleared, old conversation kept as history).
+ *
  * Thin component: state + persistence of the user turn, then delegates the AI
  * work to the Action (per CLAUDE.md / BACKEND_CONVENTIONS).
  *
@@ -19,6 +24,8 @@ namespace App\Livewire;
 use App\Actions\AiGate;
 use App\Actions\AskDocs;
 use App\Actions\RedactPii;
+use App\AskDocs\QuestionNormalizer;
+use App\Enums\CorpusProfile;
 use App\Enums\MessageRole;
 use App\Enums\Rating;
 use App\Models\Conversation;
@@ -26,6 +33,7 @@ use App\Models\Message;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 
@@ -40,22 +48,41 @@ class Chat extends Component
      */
     public array $messages = [];
 
+    #[Locked]
     public ?int $conversationId = null;
+
+    /** Active corpus profile — PRESENTATIONAL only; source of truth = Conversation.profile. */
+    #[Locked]
+    public string $profile = '';
 
     #[Validate('required|string|min:2|max:2000')]
     public string $question = '';
+
+    /**
+     * Runs on every request (before mount on the first one). Re-applies the
+     * active profile from the authoritative conversation so the retriever, source
+     * links and starters use the right instruction (audit: boot, not only mount).
+     */
+    public function boot(): void
+    {
+        $this->activateConversationProfile();
+    }
 
     public function mount(): void
     {
         $conversation = $this->existingConversation();
 
         if ($conversation === null) {
+            $this->profile = (string) config('corpus.default');
+            $this->activateConversationProfile();
             $this->messages[] = $this->greeting();
 
             return;
         }
 
         $this->conversationId = $conversation->id;
+        // boot() ran before conversationId was known → re-apply for this conversation.
+        $this->activateConversationProfile();
 
         $history = $conversation->messages()->oldest()->get();
 
@@ -69,7 +96,7 @@ class Chat extends Component
         $this->attachStartersToLastAssistant();
     }
 
-    public function sendMessage(AskDocs $askDocs, RedactPii $redactPii, AiGate $aiGate): void
+    public function sendMessage(AskDocs $askDocs, RedactPii $redactPii, AiGate $aiGate, QuestionNormalizer $normalizer): void
     {
         $this->validate();
 
@@ -87,14 +114,23 @@ class Chat extends Component
             return;
         }
 
+        // Active instruction's corpus must be available — abort BEFORE creating a
+        // generation / calling the provider (audit: no work on an unavailable profile).
+        if (! $this->artifactAvailable($this->profile)) {
+            $this->addError('question', 'Ta instrukcja jest chwilowo niedostępna. Spróbuj ponownie później.');
+
+            return;
+        }
+
         // PII redacted before storage (SCOPE_V1: raw question is NOT kept).
         $redacted = $redactPii->handle(trim($this->question));
         $conversation = $this->ensureConversation();
 
         $userMessage = $conversation->messages()->create([
+            'profile' => $conversation->profile,
             'role' => MessageRole::User,
             'content' => $redacted,
-            'normalized_question_hash' => hash('sha256', Str::lower($redacted)),
+            'normalized_question_hash' => $normalizer->hash($redacted),
         ]);
         $this->messages[] = $this->toBubble($userMessage);
         $this->reset('question');
@@ -116,20 +152,31 @@ class Chat extends Component
     }
 
     /**
-     * Reset the chat: drop the current conversation (cascades to messages +
-     * generations) and return to the welcome state.
+     * Switch the active instruction. Starts a FRESH conversation in the new
+     * profile (window cleared); the old conversation stays in the DB as history.
+     */
+    public function switchProfile(string $name): void
+    {
+        if ($name === $this->profile) {
+            return;
+        }
+
+        // Never trust the client value: must be a known, enabled, available profile.
+        if (! $this->isProfileAvailable($name)) {
+            return;
+        }
+
+        $this->startNewConversation($name);
+    }
+
+    /**
+     * "Nowa rozmowa": clear the window + start a fresh conversation in the SAME
+     * profile. Non-destructive — the previous conversation (feedback/generations)
+     * stays in the DB. Hard delete is a separate, deliberate action (admin/RODO).
      */
     public function resetChat(): void
     {
-        if ($this->conversationId !== null) {
-            Conversation::find($this->conversationId)?->delete();
-        }
-
-        $this->conversationId = null;
-        $this->messages = [$this->greeting()];
-        $this->reset('question');
-        $this->resetErrorBag();
-        $this->dispatch('chat-updated');
+        $this->startNewConversation($this->profile ?: (string) config('corpus.default'));
     }
 
     public function rate(int $messageId, string $rating): void
@@ -162,6 +209,109 @@ class Chat extends Component
     }
 
     // =========================================================================
+    // PROFILE
+    // =========================================================================
+
+    /**
+     * Apply the active profile from the AUTHORITATIVE conversation (or the default
+     * for a fresh visitor) — overriding the corpus.* config for this request only.
+     */
+    private function activateConversationProfile(): void
+    {
+        $name = $this->conversationId !== null
+            ? Conversation::find($this->conversationId)?->profile?->value
+            : ($this->profile ?: null);
+
+        $name ??= (string) config('corpus.default');
+
+        $this->profile = $name;
+        $this->applyProfile($name);
+    }
+
+    /**
+     * Point the corpus.* keys at one profile for this request (retriever file,
+     * source link base, starters, greeting). Data-driven from config('corpus.profiles').
+     */
+    private function applyProfile(string $name): void
+    {
+        $profile = config("corpus.profiles.$name") ?? config('corpus.profiles.'.config('corpus.default'));
+
+        if (! is_array($profile)) {
+            return;
+        }
+
+        config([
+            'corpus.active_profile' => $name,
+            'corpus.output_path' => $this->artifactPath($name),
+            'corpus.base_url' => $profile['base_url'] ?? '',
+            'corpus.suggestions' => $profile['suggestions'] ?? [],
+            'corpus.greeting' => $profile['greeting'] ?? '',
+        ]);
+    }
+
+    /**
+     * Create a fresh conversation in $name, clear the window, load its greeting.
+     */
+    private function startNewConversation(string $name): void
+    {
+        $conversation = Conversation::create([
+            'owner_token_hash' => $this->hashToken($this->ownerToken()),
+            'profile' => $name,
+        ]);
+
+        $this->conversationId = $conversation->id;
+        $this->profile = $name;
+        $this->applyProfile($name);
+
+        $this->messages = [$this->greeting()];
+        $this->reset('question');
+        $this->resetErrorBag();
+        $this->dispatch('chat-updated');
+    }
+
+    /**
+     * Available = known enum value + present in config + enabled + readable artifact.
+     */
+    private function isProfileAvailable(string $name): bool
+    {
+        if (CorpusProfile::tryFrom($name) === null) {
+            return false;
+        }
+
+        $profile = config("corpus.profiles.$name");
+
+        if (! is_array($profile) || ! ($profile['enabled'] ?? false)) {
+            return false;
+        }
+
+        return $this->artifactAvailable($name);
+    }
+
+    /**
+     * Readable corpus artifact for the profile (legacy corpus.json fallback is
+     * allowed ONLY for kings5-docs — clams never resolves to KINGS content).
+     */
+    private function artifactAvailable(string $name): bool
+    {
+        if (is_file($this->artifactPath($name)) && is_readable($this->artifactPath($name))) {
+            return true;
+        }
+
+        if ($name === CorpusProfile::Kings5Docs->value) {
+            $legacy = rtrim((string) config('corpus.output_dir'), '/').'/corpus.json';
+
+            return is_file($legacy) && is_readable($legacy);
+        }
+
+        return false;
+    }
+
+    private function artifactPath(string $name): string
+    {
+        return rtrim((string) config('corpus.output_dir'), '/').'/corpus-'.$name.'.json';
+    }
+
+    // =========================================================================
     // HELPERS
     // =========================================================================
 
@@ -170,6 +320,20 @@ class Chat extends Component
         return hash('sha256', (string) config('chat.owner_token_pepper').$token);
     }
 
+    /** Read the owner token from the cookie, creating + queueing one if absent. */
+    private function ownerToken(): string
+    {
+        $token = request()->cookie(self::OWNER_COOKIE);
+
+        if (! is_string($token) || $token === '') {
+            $token = Str::random(40);
+            Cookie::queue(cookie(self::OWNER_COOKIE, $token, 60 * 24 * 365));
+        }
+
+        return $token;
+    }
+
+    /** Active conversation = the latest one owned by this visitor (cookie token). */
     private function existingConversation(): ?Conversation
     {
         $token = request()->cookie(self::OWNER_COOKIE);
@@ -187,14 +351,10 @@ class Chat extends Component
             return Conversation::findOrFail($this->conversationId);
         }
 
-        $token = request()->cookie(self::OWNER_COOKIE);
-
-        if (! is_string($token) || $token === '') {
-            $token = Str::random(40);
-            Cookie::queue(cookie(self::OWNER_COOKIE, $token, 60 * 24 * 365));
-        }
-
-        $conversation = Conversation::firstOrCreate(['owner_token_hash' => $this->hashToken($token)]);
+        $conversation = Conversation::create([
+            'owner_token_hash' => $this->hashToken($this->ownerToken()),
+            'profile' => $this->profile ?: (string) config('corpus.default'),
+        ]);
         $this->conversationId = $conversation->id;
 
         return $conversation;
@@ -206,7 +366,7 @@ class Chat extends Component
      */
     private function attachStartersToLastAssistant(): void
     {
-        $starters = array_values((array) config('chat.suggestions', []));
+        $starters = $this->starters();
         if ($starters === []) {
             return;
         }
@@ -224,17 +384,29 @@ class Chat extends Component
     }
 
     /**
+     * Starter chips for the ACTIVE profile (falls back to the generic config).
+     *
+     * @return list<string>
+     */
+    private function starters(): array
+    {
+        return array_values((array) config('corpus.suggestions', (array) config('chat.suggestions', [])));
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function greeting(): array
     {
+        $text = (string) config('corpus.greeting');
+
         return [
             'id' => null,
             'role' => MessageRole::Assistant->value,
-            'text' => 'Witaj! Zadaj pytanie o panel KINGS — odpowiem wyłącznie na podstawie dokumentacji i wskażę źródło.',
+            'text' => $text !== '' ? $text : 'Witaj! Zadaj pytanie o dokumentację — odpowiem wyłącznie na jej podstawie i wskażę źródło.',
             'time' => now()->format('H:i'),
             'sources' => [],
-            'suggestions' => array_values((array) config('chat.suggestions', [])),
+            'suggestions' => $this->starters(),
             'rating' => null,
         ];
     }
@@ -261,6 +433,31 @@ class Chat extends Component
 
     public function render()
     {
-        return view('livewire.chat');
+        return view('livewire.chat', ['profiles' => $this->profileTabs()]);
+    }
+
+    /**
+     * Enabled + available instruction tabs for the header switch (data-driven —
+     * unavailable/disabled profiles are simply not shown).
+     *
+     * @return list<array{name: string, label: string, active: bool}>
+     */
+    private function profileTabs(): array
+    {
+        $tabs = [];
+
+        foreach ((array) config('corpus.profiles') as $name => $cfg) {
+            if (! is_array($cfg) || ! ($cfg['enabled'] ?? false) || ! $this->artifactAvailable((string) $name)) {
+                continue;
+            }
+
+            $tabs[] = [
+                'name' => (string) $name,
+                'label' => (string) ($cfg['label'] ?? $name),
+                'active' => $name === $this->profile,
+            ];
+        }
+
+        return $tabs;
     }
 }

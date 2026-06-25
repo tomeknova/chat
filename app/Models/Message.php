@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CorpusProfile;
 use App\Enums\MessageRole;
 use App\Enums\ProductStatus;
 use App\Enums\Rating;
@@ -23,6 +24,7 @@ class Message extends Model
      */
     protected $fillable = [
         'conversation_id',
+        'profile',
         'role',
         'content',
         'normalized_question_hash',
@@ -37,6 +39,7 @@ class Message extends Model
     protected function casts(): array
     {
         return [
+            'profile' => CorpusProfile::class,
             'role' => MessageRole::class,
             'product_status' => ProductStatus::class,
             'rating' => Rating::class,

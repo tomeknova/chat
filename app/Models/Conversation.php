@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CorpusProfile;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,7 +22,18 @@ class Conversation extends Model
     protected $fillable = [
         'public_id',
         'owner_token_hash',
+        'profile',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'profile' => CorpusProfile::class,
+        ];
+    }
 
     protected static function booted(): void
     {

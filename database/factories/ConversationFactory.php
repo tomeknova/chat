@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\CorpusProfile;
 use App\Models\Conversation;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -20,6 +21,7 @@ class ConversationFactory extends Factory
     {
         return [
             'owner_token_hash' => hash('sha256', Str::random(40)),
+            'profile' => CorpusProfile::Kings5Docs->value,
         ];
     }
 }

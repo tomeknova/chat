@@ -18,13 +18,21 @@ class ChatTest extends TestCase
 {
     use RefreshDatabase;
 
+    private string $corpusDir;
+
     private string $corpusPath;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->corpusPath = storage_path('app/corpus/test-corpus-'.uniqid().'.json');
+        // Isolated corpus dir: the Chat component derives output_path from
+        // output_dir + active profile, so the test corpus must live there as
+        // corpus-kings5-docs.json (and the suite never reaches real storage).
+        $this->corpusDir = sys_get_temp_dir().'/chat_corpus_'.uniqid();
+        @mkdir($this->corpusDir, 0775, true);
+        $this->corpusPath = $this->corpusDir.'/corpus-kings5-docs.json';
+
         config([
             'askdocs.default' => 'openrouter',
             'askdocs.providers.openrouter' => [
@@ -34,14 +42,19 @@ class ChatTest extends TestCase
                 'model' => 'openai/gpt-5.4-nano',
                 'providers' => ['openai', 'azure'],
             ],
+            'corpus.output_dir' => $this->corpusDir,
             'corpus.output_path' => $this->corpusPath,
+            'corpus.active_profile' => 'kings5-docs',
             'corpus.base_url' => '',
         ]);
     }
 
     protected function tearDown(): void
     {
-        @unlink($this->corpusPath);
+        foreach (glob($this->corpusDir.'/*') ?: [] as $file) {
+            @unlink($file);
+        }
+        @rmdir($this->corpusDir);
 
         parent::tearDown();
     }
@@ -193,7 +206,7 @@ class ChatTest extends TestCase
         $this->assertDatabaseHas('messages', ['role' => 'user', 'content' => 'Jak się zalogować?']);
     }
 
-    public function test_reset_clears_the_conversation_and_returns_to_welcome(): void
+    public function test_reset_starts_a_fresh_conversation_keeping_history(): void
     {
         $this->writeCorpus();
         $this->fakeAnswer();
@@ -203,11 +216,17 @@ class ChatTest extends TestCase
             ->call('sendMessage');
 
         $this->assertDatabaseCount('messages', 2); // user + assistant
+        $firstConversationId = $component->get('conversationId');
 
         $component->call('resetChat')->assertSee('Witaj!');
 
-        $this->assertDatabaseCount('messages', 0); // conversation deleted → cascade
-        $this->assertNull($component->get('conversationId'));
+        // Non-destructive: window cleared, but the old conversation + messages stay
+        // (history for curation); a NEW conversation becomes active.
+        $this->assertDatabaseCount('messages', 2);
+        $this->assertDatabaseCount('conversations', 2);
+        $newConversationId = $component->get('conversationId');
+        $this->assertNotNull($newConversationId);
+        $this->assertNotSame($firstConversationId, $newConversationId);
     }
 
     public function test_returning_user_gets_starter_suggestions_on_history(): void
@@ -216,8 +235,8 @@ class ChatTest extends TestCase
 
         $hash = hash('sha256', (string) config('chat.owner_token_pepper').'token-ret');
         $conversation = Conversation::factory()->create(['owner_token_hash' => $hash]);
-        $conversation->messages()->create(['role' => MessageRole::User, 'content' => 'pytanie', 'normalized_question_hash' => 'h']);
-        $conversation->messages()->create(['role' => MessageRole::Assistant, 'content' => 'odpowiedź', 'product_status' => ProductStatus::Abstained]);
+        $conversation->messages()->create(['profile' => $conversation->profile, 'role' => MessageRole::User, 'content' => 'pytanie', 'normalized_question_hash' => 'h']);
+        $conversation->messages()->create(['profile' => $conversation->profile, 'role' => MessageRole::Assistant, 'content' => 'odpowiedź', 'product_status' => ProductStatus::Abstained]);
 
         // Returning user: greeting is skipped, so starters attach to the last assistant bubble.
         Livewire::withCookies(['kings_chat_owner' => 'token-ret'])

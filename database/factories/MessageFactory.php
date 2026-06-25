@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\CorpusProfile;
 use App\Enums\MessageRole;
 use App\Enums\ProductStatus;
 use App\Enums\Rating;
@@ -23,6 +24,7 @@ class MessageFactory extends Factory
     {
         return [
             'conversation_id' => Conversation::factory(),
+            'profile' => CorpusProfile::Kings5Docs->value,
             'role' => MessageRole::User,
             'content' => $this->faker->sentence().'?',
             'normalized_question_hash' => hash('sha256', $this->faker->sentence()),

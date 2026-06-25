@@ -241,6 +241,7 @@ class AskDocs
         $assistant = DB::transaction(function () use ($generation, $userMessage, $candidates, $selection, $product, $body) {
             $assistant = Message::create([
                 'conversation_id' => $userMessage->conversation_id,
+                'profile' => $userMessage->profile, // invariant: same instruction as the question
                 'role' => MessageRole::Assistant,
                 'content' => $body,
                 'product_status' => $product,

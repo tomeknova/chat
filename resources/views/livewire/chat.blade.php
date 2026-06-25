@@ -11,13 +11,29 @@
 
     {{-- Header --}}
     <div class="chat-header">
-        <span class="chat-header-title"><i class="bi bi-robot"></i> Asystent dokumentacji KINGS</span>
-        <button type="button" class="chat-reset-btn"
-            wire:click="resetChat"
-            wire:confirm="Wyczyścić rozmowę i zacząć od nowa?"
-            wire:loading.attr="disabled">
-            <i class="bi bi-arrow-clockwise"></i> Nowa rozmowa
-        </button>
+        <span class="chat-header-title"><i class="bi bi-robot"></i> Asystent dokumentacji</span>
+        <div class="chat-header-actions">
+            {{-- Instruction switch: only when more than one instruction is available. --}}
+            @if (count($profiles) > 1)
+                <div class="chat-profile-switch" role="group" aria-label="Wybór instrukcji dokumentacji">
+                    @foreach ($profiles as $tab)
+                        <button type="button"
+                            class="chat-profile-btn @if ($tab['active']) is-active @endif"
+                            aria-pressed="{{ $tab['active'] ? 'true' : 'false' }}"
+                            wire:click="switchProfile('{{ $tab['name'] }}')"
+                            wire:loading.attr="disabled" wire:target="switchProfile">
+                            @if ($tab['active'])<i class="bi bi-check-lg" aria-hidden="true"></i> @endif{{ $tab['label'] }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+            <button type="button" class="chat-reset-btn"
+                wire:click="resetChat"
+                wire:confirm="Zacząć nową rozmowę? Bieżąca zostanie zapisana w historii."
+                wire:loading.attr="disabled" wire:target="resetChat">
+                <i class="bi bi-arrow-clockwise"></i> Nowa rozmowa
+            </button>
+        </div>
     </div>
 
     {{-- Messages --}}
