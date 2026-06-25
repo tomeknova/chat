@@ -22,15 +22,27 @@ class AskDocsTest extends TestCase
 {
     use RefreshDatabase;
 
+    private string $corpusDir;
+
     private string $corpusPath;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->corpusPath = storage_path('app/corpus/test-corpus-'.uniqid().'.json');
+        // Isolated corpus dir: the KINGS legacy fallback resolves output_dir/corpus.json,
+        // so tests must NOT share the real storage dir (a leftover corpus.json would leak).
+        $this->corpusDir = sys_get_temp_dir().'/askdocs_corpus_'.uniqid();
+        @mkdir($this->corpusDir, 0775, true);
+        $this->corpusPath = $this->corpusDir.'/test-corpus.json';
+
         config([
             'askdocs.default' => 'openrouter',
+            // Pin the retriever here (NOT via phpunit.xml <env>, which the local
+            // .env overrides on this setup) so non-escalation tests deterministically
+            // get the full candidate set. Escalation tests switch to lexical via
+            // configureEscalation().
+            'askdocs.retrieval.driver' => 'full',
             'askdocs.providers.openrouter' => [
                 'driver' => 'openrouter',
                 'base_url' => 'https://openrouter.ai/api/v1',
@@ -38,7 +50,9 @@ class AskDocsTest extends TestCase
                 'model' => 'openai/gpt-5.4-nano',
                 'providers' => ['openai', 'azure'],
             ],
+            'corpus.output_dir' => $this->corpusDir,
             'corpus.output_path' => $this->corpusPath,
+            'corpus.active_profile' => 'kings5-docs',
             'corpus.base_url' => '',
         ]);
 
@@ -47,7 +61,10 @@ class AskDocsTest extends TestCase
 
     protected function tearDown(): void
     {
-        @unlink($this->corpusPath);
+        foreach (glob($this->corpusDir.'/*') ?: [] as $file) {
+            @unlink($file);
+        }
+        @rmdir($this->corpusDir);
 
         parent::tearDown();
     }
